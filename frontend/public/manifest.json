@@ -1,0 +1,9 @@
+{
+  "name": "PRIZMA",
+  "short_name": "PRIZMA",
+  "description": "Психологический тест с ИИ-анализом",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#1a1a2e",
+  "background_color": "#0f0f1a"
+}
