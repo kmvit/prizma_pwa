@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 function useBodyClass(className) {
@@ -9,9 +9,10 @@ function useBodyClass(className) {
 export default function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
+  const [name, setName] = useState(location.state?.name ?? '')
   const [err, setErr] = useState('')
 
   useBodyClass('bodyLogin')
@@ -21,7 +22,7 @@ export default function RegisterPage() {
     setErr('')
     try {
       await register(email, password, name)
-      navigate('/question')
+      navigate('/login')
     } catch (e) {
       setErr(e.message)
     }

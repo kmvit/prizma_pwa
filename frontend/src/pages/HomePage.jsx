@@ -54,7 +54,7 @@ export default function HomePage() {
   const handleStart = async (e) => {
     e.preventDefault()
     if (!user) {
-      navigate('/register')
+      navigate('/register', { state: { name: name.trim() || undefined } })
       return
     }
     if (!name.trim() || !age || !gender) {
