@@ -1,5 +1,7 @@
+import { Fragment } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
+import InstallBanner from './components/InstallBanner'
 import HomePage from './pages/HomePage'
 import RegisterPage from './pages/RegisterPage'
 import LoginPage from './pages/LoginPage'
@@ -23,7 +25,8 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   return (
-    <Routes>
+    <Fragment>
+      <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -94,6 +97,8 @@ export default function App() {
       <Route path="/payment/success" element={<PaymentSuccessPage />} />
       <Route path="/payment/fail" element={<PaymentFailPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+      <InstallBanner />
+    </Fragment>
   )
 }
