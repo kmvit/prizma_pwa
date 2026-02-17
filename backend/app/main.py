@@ -75,6 +75,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+FILES_DIR = Path(__file__).resolve().parent.parent / "files"
+
+
+@app.get("/api/files/policy")
+async def serve_policy():
+    """Политика конфиденциальности"""
+    path = FILES_DIR / "policy.docx"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    return FileResponse(path, filename="politika-konfidencialnosti.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+@app.get("/api/files/offerta")
+async def serve_offerta():
+    """Оферта"""
+    path = FILES_DIR / "offerta.docx"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    return FileResponse(path, filename="offerta.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
 
 async def update_current_question(user_id: int, question_id: int):
     from sqlalchemy import update as sql_update

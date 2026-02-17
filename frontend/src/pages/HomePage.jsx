@@ -6,7 +6,7 @@ function useBodyClass(className) {
     return () => { document.body.className = '' }
   }, [className])
 }
-import { useNavigate, Navigate } from 'react-router-dom'
+import { useNavigate, Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
 
@@ -154,6 +154,12 @@ export default function HomePage() {
             Ответить на 8 вопросов и получить
             мини–анализ БЕСПЛАТНО
           </button>
+          {!user && (
+            <div style={{ textAlign: 'center', padding: '16px 0 0', fontSize: '14px' }}>
+              <Link to="/login" style={{ marginRight: '16px' }}>Войти</Link>
+              <Link to="/register">Регистрация</Link>
+            </div>
+          )}
         </form>
       </div>
       <div className="quiz-benefits-container">
@@ -273,12 +279,10 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-      {!user && (
-        <div style={{ textAlign: 'center', padding: '20px', fontSize: '14px' }}>
-          <a href="/login" style={{ marginRight: '16px' }}>Войти</a>
-          <a href="/register">Регистрация</a>
-        </div>
-      )}
+      <div style={{ textAlign: 'center', padding: '20px', fontSize: '14px' }}>
+        <a href="/api/files/policy" target="_blank" rel="noopener noreferrer" style={{ marginRight: '16px' }}>Конфиденциальность</a>
+        <a href="/api/files/offerta" target="_blank" rel="noopener noreferrer">Оферта</a>
+      </div>
     </main>
   )
 }
