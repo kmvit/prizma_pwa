@@ -3,10 +3,20 @@ import { useState, useEffect } from 'react'
 const DISMISS_KEY = 'prizma_install_dismissed'
 const DISMISS_DAYS = 7
 
+/** Safari/iOS не поддерживает beforeinstallprompt — показываем ручную инструкцию */
+function isSafariLike() {
+  const ua = navigator.userAgent
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (ua.includes('Safari') && !ua.includes('Chrome') && !ua.includes('Edg'))
+  )
+}
+
 export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [isInstallable, setIsInstallable] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
+  const [isSafari, setIsSafari] = useState(false)
 
   useEffect(() => {
     const handler = (e) => {
@@ -38,6 +48,15 @@ export function useInstallPrompt() {
     if (dismissed) {
       const d = parseInt(dismissed, 10)
       if (Date.now() - d < DISMISS_DAYS * 24 * 60 * 60 * 1000) return
+    }
+
+    const safari = isSafariLike()
+    setIsSafari(safari)
+
+    if (safari) {
+      // Safari никогда не вызовет beforeinstallprompt — показываем баннер с инструкцией сразу
+      setIsInstallable(true)
+      return
     }
 
     window.addEventListener('beforeinstallprompt', handler)
