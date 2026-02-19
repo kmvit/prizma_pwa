@@ -108,7 +108,7 @@ export default function LoadingPage() {
       </div>
       <div className="loading-time">
         <div>{statusText}</div>
-        {status === 'ready' && <button className="button" onClick={handleDownload}>Скачать отчет</button>}
+        {status === 'ready' && <button type="button" className="button" onClick={handleDownload}>Скачать отчет</button>}
         {status === 'generating' && <div className="loading-hint">Это может занять до 5-10 минут</div>}
       </div>
       <div className="loading-links">

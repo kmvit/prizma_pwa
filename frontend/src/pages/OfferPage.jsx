@@ -114,7 +114,7 @@ export default function OfferPage() {
           <div className="quiz-result">
             <img src="/images/result-ico-pdf.webp" alt="" className="quiz-result-img" onError={(e) => { e.target.style.display = 'none' }} />
             {reportStatus === 'ready' ? (
-              <button className="link-download-result" onClick={handleDownload}>
+              <button type="button" className="link-download-result" onClick={handleDownload}>
                 <span className="download-file-text"><span>Скачать</span></span>
               </button>
             ) : reportStatus === 'generating' ? (

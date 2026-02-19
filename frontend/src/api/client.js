@@ -59,9 +59,30 @@ export const api = {
 
   getReportsStatus: () => fetchApi('/me/reports-status'),
 
-  downloadReport: (type = 'free') => {
+  downloadReport: async (type = 'free') => {
     const path = type === 'premium' ? '/me/download/premium-report' : '/me/download/report'
-    window.open(BASE + path, '_blank')
+    try {
+      const res = await fetch(BASE + path, { credentials: 'include' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new Error(err.detail || err.error || String(err))
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('Content-Disposition')
+      const filenameMatch = disposition?.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+      const filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : `prizma-report.${blob.type?.includes('pdf') ? 'pdf' : 'txt'}`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Download failed:', e)
+      throw e
+    }
   },
 
   generatePremiumReport: () =>

@@ -16,8 +16,23 @@ export default function DownloadPage() {
     api.getReportsStatus().then(setStatus)
   }, [])
 
-  const handleDownloadFree = () => api.downloadReport('free')
-  const handleDownloadPremium = () => api.downloadReport('premium')
+  const [downloadError, setDownloadError] = useState(null)
+  const handleDownloadFree = async () => {
+    setDownloadError(null)
+    try {
+      await api.downloadReport('free')
+    } catch (e) {
+      setDownloadError(e?.message || 'Не удалось скачать')
+    }
+  }
+  const handleDownloadPremium = async () => {
+    setDownloadError(null)
+    try {
+      await api.downloadReport('premium')
+    } catch (e) {
+      setDownloadError(e?.message || 'Не удалось скачать')
+    }
+  }
 
   if (redirecting || !status) {
     return (
@@ -94,18 +109,21 @@ export default function DownloadPage() {
               <img src="/images/file.png" alt="" />
             </div>
             {freeReady && (
-              <button className="decoding-download-button" onClick={handleDownloadFree}>
+              <button type="button" className="decoding-download-button" onClick={handleDownloadFree}>
                 <span className="download-file-text"><span>Скачать бесплатный отчёт</span></span>
               </button>
             )}
             {premiumReady && (
-              <button className="decoding-download-button" onClick={handleDownloadPremium}>
+              <button type="button" className="decoding-download-button" onClick={handleDownloadPremium}>
                 <span className="download-file-text"><span>Скачать премиум отчёт</span></span>
               </button>
             )}
           </div>
         </div>
       </div>
+      {downloadError && (
+        <p style={{ textAlign: 'center', marginTop: 24, color: '#c00' }}>{downloadError}</p>
+      )}
       {(premiumProcessing || (!freeReady && !premiumReady && !premiumProcessing)) && (
         <p style={{ textAlign: 'center', marginTop: 24 }}>
           {premiumProcessing && <>Премиум отчёт генерируется...</>}
