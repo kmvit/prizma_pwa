@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 /**
  * Обработка redirect от Telegram Login Widget.
@@ -9,9 +10,11 @@ import { api } from '../api/client'
 export default function TelegramAuthCallbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { checkAuth } = useAuth()
   const [status, setStatus] = useState('Ожидание...')
 
   useEffect(() => {
+    let cancelled = false
     const hash = searchParams.get('hash')
     if (!hash) {
       setStatus('Ошибка: нет данных авторизации')
@@ -23,17 +26,25 @@ export default function TelegramAuthCallbackPage() {
     // подпись считается по полному набору параметров (кроме hash).
     const payload = Object.fromEntries(searchParams.entries())
 
-    setStatus('Вход...')
-    api
-      .loginTelegram(payload)
-      .then(() => {
-        window.location.replace('/question')
-      })
-      .catch((e) => {
-        setStatus(`Ошибка: ${e?.message || 'не удалось войти'}`)
-        setTimeout(() => navigate('/login'), 2000)
-      })
-  }, [searchParams, navigate])
+    const login = async () => {
+      try {
+        setStatus('Вход...')
+        await api.loginTelegram(payload)
+        await checkAuth()
+        if (!cancelled) navigate('/question', { replace: true })
+      } catch (e) {
+        if (!cancelled) {
+          setStatus(`Ошибка: ${e?.message || 'не удалось войти'}`)
+          setTimeout(() => navigate('/login'), 2000)
+        }
+      }
+    }
+
+    login()
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, navigate, checkAuth])
 
   return (
     <main className="main login">
