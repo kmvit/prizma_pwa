@@ -156,28 +156,41 @@ async def login(data: LoginRequest, response: Response):
 @app.post("/api/auth/telegram")
 async def login_telegram(data: dict, response: Response):
     """Авторизация через Telegram Login Widget"""
+    logger.info(
+        "TG auth request: keys={} has_hash={} id={} auth_date={}",
+        sorted(list(data.keys())),
+        bool(data.get("hash")),
+        data.get("id"),
+        data.get("auth_date"),
+    )
     if not TELEGRAM_BOT_TOKEN:
+        logger.error("TG auth failed: TELEGRAM_BOT_TOKEN is empty")
         raise HTTPException(status_code=503, detail="Telegram авторизация не настроена")
 
     required_fields = ("id", "first_name", "auth_date", "hash")
     if any(data.get(field) in (None, "") for field in required_fields):
+        logger.warning("TG auth failed: required fields missing")
         raise HTTPException(status_code=400, detail="Некорректные данные Telegram")
 
     try:
         auth_date = int(data.get("auth_date"))
         telegram_id = int(data.get("id"))
     except (TypeError, ValueError):
+        logger.warning("TG auth failed: invalid id/auth_date format")
         raise HTTPException(status_code=400, detail="Некорректный формат данных Telegram")
 
     # Проверка freshness (replay attack prevention)
     if abs(time.time() - auth_date) > 300:
+        logger.warning("TG auth failed: auth_date too old/new")
         raise HTTPException(status_code=401, detail="Данные авторизации устарели")
 
     if not verify_telegram_auth(data, TELEGRAM_BOT_TOKEN):
+        logger.warning("TG auth failed: signature mismatch for telegram_id={}", telegram_id)
         raise HTTPException(status_code=401, detail="Неверная подпись Telegram")
 
     user = await db_service.get_user_by_telegram_id(telegram_id)
     if not user:
+        logger.info("TG auth: creating new telegram user id={}", telegram_id)
         user = await db_service.create_telegram_user(
             telegram_id=telegram_id,
             first_name=str(data.get("first_name", "")),
@@ -192,6 +205,7 @@ async def login_telegram(data: dict, response: Response):
         samesite="lax",
         max_age=86400 * 30,
     )
+    logger.info("TG auth success: user_id={} telegram_id={}", user.id, telegram_id)
     return {"status": "ok", "user": {"id": user.id, "email": user.email, "name": user.name}}
 
 

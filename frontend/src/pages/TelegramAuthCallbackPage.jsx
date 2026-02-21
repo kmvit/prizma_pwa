@@ -15,8 +15,14 @@ export default function TelegramAuthCallbackPage() {
 
   useEffect(() => {
     let cancelled = false
+    console.debug('[TG_CALLBACK] opened', {
+      href: window.location.href,
+      search: window.location.search,
+    })
+
     const hash = searchParams.get('hash')
     if (!hash) {
+      console.warn('[TG_CALLBACK] missing hash, redirect to /login')
       setStatus('Ошибка: нет данных авторизации')
       setTimeout(() => navigate('/login'), 2000)
       return
@@ -25,14 +31,19 @@ export default function TelegramAuthCallbackPage() {
     // Передаем все поля от Telegram как есть:
     // подпись считается по полному набору параметров (кроме hash).
     const payload = Object.fromEntries(searchParams.entries())
+    console.debug('[TG_CALLBACK] payload keys', Object.keys(payload))
 
     const login = async () => {
       try {
         setStatus('Вход...')
+        console.debug('[TG_CALLBACK] calling /api/auth/telegram')
         await api.loginTelegram(payload)
+        console.debug('[TG_CALLBACK] /api/auth/telegram ok, checking auth context')
         await checkAuth()
+        console.debug('[TG_CALLBACK] checkAuth done, navigate /question')
         if (!cancelled) navigate('/question', { replace: true })
       } catch (e) {
+        console.error('[TG_CALLBACK] login failed', e)
         if (!cancelled) {
           setStatus(`Ошибка: ${e?.message || 'не удалось войти'}`)
           setTimeout(() => navigate('/login'), 2000)

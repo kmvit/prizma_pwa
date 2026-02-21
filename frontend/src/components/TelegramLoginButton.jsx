@@ -11,9 +11,20 @@ export default function TelegramLoginButton({ buttonSize = 'large', className = 
   const containerRef = useRef(null)
 
   useEffect(() => {
-    if (!TELEGRAM_BOT_USERNAME || !containerRef.current) return
+    if (!TELEGRAM_BOT_USERNAME || !containerRef.current) {
+      console.debug('[TG_LOGIN] widget skipped', {
+        hasUsername: Boolean(TELEGRAM_BOT_USERNAME),
+        hasContainer: Boolean(containerRef.current),
+      })
+      return
+    }
 
     const authUrl = `${window.location.origin}/auth/telegram/callback`
+    console.debug('[TG_LOGIN] render widget', {
+      authUrl,
+      bot: TELEGRAM_BOT_USERNAME,
+      origin: window.location.origin,
+    })
 
     const script = document.createElement('script')
     script.async = true
@@ -22,6 +33,8 @@ export default function TelegramLoginButton({ buttonSize = 'large', className = 
     script.setAttribute('data-size', buttonSize)
     script.setAttribute('data-auth-url', authUrl)
     script.setAttribute('data-request-access', 'write')
+    script.onload = () => console.debug('[TG_LOGIN] widget script loaded')
+    script.onerror = () => console.error('[TG_LOGIN] widget script failed')
     containerRef.current.innerHTML = ''
     containerRef.current.appendChild(script)
   }, [buttonSize])
