@@ -4,6 +4,7 @@ import { useAuth } from './contexts/AuthContext'
 import InstallBanner from './components/InstallBanner'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import TelegramAuthCallbackPage from './pages/TelegramAuthCallbackPage'
 import ProfilePage from './pages/ProfilePage'
 import QuestionPage from './pages/QuestionPage'
 import LoadingPage from './pages/LoadingPage'
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/telegram/callback" element={<TelegramAuthCallbackPage />} />
       <Route
         path="/profile"
         element={
