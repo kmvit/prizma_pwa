@@ -19,15 +19,9 @@ export default function TelegramAuthCallbackPage() {
       return
     }
 
-    const payload = {
-      id: parseInt(searchParams.get('id') || '0', 10),
-      first_name: searchParams.get('first_name') || '',
-      last_name: searchParams.get('last_name') || undefined,
-      username: searchParams.get('username') || undefined,
-      photo_url: searchParams.get('photo_url') || undefined,
-      auth_date: parseInt(searchParams.get('auth_date') || '0', 10),
-      hash,
-    }
+    // Передаем все поля от Telegram как есть:
+    // подпись считается по полному набору параметров (кроме hash).
+    const payload = Object.fromEntries(searchParams.entries())
 
     setStatus('Вход...')
     api

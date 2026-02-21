@@ -44,7 +44,6 @@ from app.models.api_models import (
     UserProfileUpdate,
     RegisterRequest,
     LoginRequest,
-    TelegramAuthRequest,
     QuestionResponse,
     ProgressResponse,
     UserStatusResponse,
@@ -155,23 +154,35 @@ async def login(data: LoginRequest, response: Response):
 
 
 @app.post("/api/auth/telegram")
-async def login_telegram(data: TelegramAuthRequest, response: Response):
+async def login_telegram(data: dict, response: Response):
     """Авторизация через Telegram Login Widget"""
     if not TELEGRAM_BOT_TOKEN:
         raise HTTPException(status_code=503, detail="Telegram авторизация не настроена")
+
+    required_fields = ("id", "first_name", "auth_date", "hash")
+    if any(data.get(field) in (None, "") for field in required_fields):
+        raise HTTPException(status_code=400, detail="Некорректные данные Telegram")
+
+    try:
+        auth_date = int(data.get("auth_date"))
+        telegram_id = int(data.get("id"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Некорректный формат данных Telegram")
+
     # Проверка freshness (replay attack prevention)
-    if abs(time.time() - data.auth_date) > 300:
+    if abs(time.time() - auth_date) > 300:
         raise HTTPException(status_code=401, detail="Данные авторизации устарели")
-    payload = data.model_dump(mode="json")
-    if not verify_telegram_auth(payload, TELEGRAM_BOT_TOKEN):
+
+    if not verify_telegram_auth(data, TELEGRAM_BOT_TOKEN):
         raise HTTPException(status_code=401, detail="Неверная подпись Telegram")
-    user = await db_service.get_user_by_telegram_id(data.id)
+
+    user = await db_service.get_user_by_telegram_id(telegram_id)
     if not user:
         user = await db_service.create_telegram_user(
-            telegram_id=data.id,
-            first_name=data.first_name,
-            last_name=data.last_name,
-            username=data.username,
+            telegram_id=telegram_id,
+            first_name=str(data.get("first_name", "")),
+            last_name=data.get("last_name"),
+            username=data.get("username"),
         )
     sid = create_session(user.id)
     response.set_cookie(
