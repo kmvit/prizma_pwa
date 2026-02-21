@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import InstallBanner from './components/InstallBanner'
+import AppHeader from './components/AppHeader'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import TelegramAuthCallbackPage from './pages/TelegramAuthCallbackPage'
@@ -26,6 +27,7 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <Fragment>
+      <AppHeader />
       <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/register" element={<Navigate to="/login" replace />} />

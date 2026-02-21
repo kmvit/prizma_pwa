@@ -33,7 +33,7 @@ export default function TelegramAuthCallbackPage() {
     api
       .loginTelegram(payload)
       .then(() => {
-        window.location.replace('/')
+        window.location.replace('/question')
       })
       .catch((e) => {
         setStatus(`Ошибка: ${e?.message || 'не удалось войти'}`)
