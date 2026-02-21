@@ -22,9 +22,11 @@ from app.auth.auth import (
     verify_password,
     create_session,
     delete_session,
+    verify_telegram_auth,
 )
 from app.config import (
     FRONTEND_URL,
+    TELEGRAM_BOT_TOKEN,
     FREE_QUESTIONS_LIMIT,
     PREMIUM_PRICE_ORIGINAL,
     PREMIUM_PRICE_DISCOUNT,
@@ -42,6 +44,7 @@ from app.models.api_models import (
     UserProfileUpdate,
     RegisterRequest,
     LoginRequest,
+    TelegramAuthRequest,
     QuestionResponse,
     ProgressResponse,
     UserStatusResponse,
@@ -151,6 +154,36 @@ async def login(data: LoginRequest, response: Response):
     return {"status": "ok", "user": {"id": user.id, "email": user.email, "name": user.name}}
 
 
+@app.post("/api/auth/telegram")
+async def login_telegram(data: TelegramAuthRequest, response: Response):
+    """Авторизация через Telegram Login Widget"""
+    if not TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Telegram авторизация не настроена")
+    # Проверка freshness (replay attack prevention)
+    if abs(time.time() - data.auth_date) > 300:
+        raise HTTPException(status_code=401, detail="Данные авторизации устарели")
+    payload = data.model_dump(mode="json")
+    if not verify_telegram_auth(payload, TELEGRAM_BOT_TOKEN):
+        raise HTTPException(status_code=401, detail="Неверная подпись Telegram")
+    user = await db_service.get_user_by_telegram_id(data.id)
+    if not user:
+        user = await db_service.create_telegram_user(
+            telegram_id=data.id,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            username=data.username,
+        )
+    sid = create_session(user.id)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=sid,
+        httponly=True,
+        samesite="lax",
+        max_age=86400 * 30,
+    )
+    return {"status": "ok", "user": {"id": user.id, "email": user.email, "name": user.name}}
+
+
 @app.post("/api/auth/logout")
 async def logout(response: Response, session_id: Optional[str] = Cookie(None, alias=SESSION_COOKIE_NAME)):
     if session_id:
@@ -161,10 +194,12 @@ async def logout(response: Response, session_id: Optional[str] = Cookie(None, al
 
 @app.get("/api/me")
 async def get_me(user: User = Depends(get_current_user)):
+    is_telegram = user.telegram_id and user.email and user.email.startswith("tg_")
     return {
         "id": user.id,
-        "email": user.email,
+        "email": None if is_telegram else user.email,
         "name": user.name,
+        "telegram_username": user.telegram_username if user.telegram_id else None,
         "age": user.age,
         "gender": user.gender,
         "is_paid": user.is_paid,

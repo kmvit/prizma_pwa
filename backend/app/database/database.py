@@ -18,7 +18,21 @@ async_session = sessionmaker(
 )
 
 
+async def _run_migrations(conn):
+    """Миграция: добавление колонок для Telegram-авторизации"""
+    from sqlalchemy import text
+    result = await conn.execute(text("PRAGMA table_info(users)"))
+    existing = {row[1] for row in result.fetchall()}
+    for col, col_type in [
+        ("telegram_id", "BIGINT"),
+        ("telegram_username", "VARCHAR(100)"),
+    ]:
+        if col not in existing:
+            await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {col_type}"))
+
+
 async def init_db():
     """Инициализация базы данных"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _run_migrations(conn)

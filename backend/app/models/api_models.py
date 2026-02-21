@@ -19,6 +19,17 @@ class LoginRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=1)
 
+
+class TelegramAuthRequest(BaseModel):
+    """Данные от Telegram Login Widget (data-onauth callback)"""
+    id: int = Field(..., description="Telegram user ID")
+    first_name: str = Field(...)
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    photo_url: Optional[str] = None
+    auth_date: int = Field(..., description="Unix timestamp")
+    hash: str = Field(..., description="HMAC-SHA256 подпись для проверки")
+
 class QuestionResponse(BaseModel):
     id: int
     text: str

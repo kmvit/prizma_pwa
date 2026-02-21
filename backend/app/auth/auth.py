@@ -1,10 +1,13 @@
+import hashlib
+import hmac
 import secrets
-from typing import Optional
+import time
+from typing import Optional, Any
 
 import bcrypt
 from fastapi import HTTPException, status, Cookie
 
-from app.config import SESSION_COOKIE_NAME
+from app.config import SESSION_COOKIE_NAME, TELEGRAM_BOT_TOKEN
 from app.database.models import User
 from app.services.database_service import db_service
 
@@ -32,6 +35,23 @@ def get_user_id_from_session(session_id: str) -> Optional[int]:
 
 def delete_session(session_id: str) -> None:
     _sessions.pop(session_id, None)
+
+
+def verify_telegram_auth(data: dict[str, Any], bot_token: str) -> bool:
+    """
+    Проверка подлинности данных от Telegram Login Widget.
+    https://core.telegram.org/widgets/login#checking-authorization
+    """
+    received_hash = data.get("hash")
+    if not received_hash or not bot_token:
+        return False
+    # data_check_string: поля в алфавитном порядке (кроме hash), key=value через \n
+    check_data = {k: v for k, v in data.items() if k != "hash" and v is not None}
+    parts = [f"{k}={v}" for k, v in sorted(check_data.items())]
+    data_check_string = "\n".join(parts)
+    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    computed = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(computed, received_hash)
 
 
 async def get_current_user(

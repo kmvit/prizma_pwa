@@ -26,6 +26,13 @@ class DatabaseService:
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
+    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        """Получить пользователя по Telegram ID"""
+        async with async_session() as session:
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+
     async def create_user(self, email: str, password_hash: str, name: Optional[str] = None) -> User:
         """Создать нового пользователя"""
         async with async_session() as session:
@@ -33,6 +40,30 @@ class DatabaseService:
                 email=email,
                 password_hash=password_hash,
                 name=name
+            )
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+            return user
+
+    async def create_telegram_user(
+        self,
+        telegram_id: int,
+        first_name: str,
+        last_name: Optional[str] = None,
+        username: Optional[str] = None,
+    ) -> User:
+        """Создать пользователя при первом входе через Telegram"""
+        from app.auth.auth import hash_password
+        email = f"tg_{telegram_id}@prizma.telegram"
+        name = f"{first_name} {last_name or ''}".strip() or first_name
+        async with async_session() as session:
+            user = User(
+                email=email,
+                password_hash=hash_password(str(telegram_id)),  # placeholder, не используется
+                name=name,
+                telegram_id=telegram_id,
+                telegram_username=username,
             )
             session.add(user)
             await session.commit()
