@@ -14,7 +14,7 @@ SQL_ECHO = os.getenv("SQL_ECHO", "false").lower() == "true"
 # Auth
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-long-random-string")
 SESSION_COOKIE_NAME = "prizma_session"
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 
 # Frontend (редиректы после оплаты)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")

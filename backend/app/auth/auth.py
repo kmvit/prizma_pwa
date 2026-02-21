@@ -6,6 +6,7 @@ from typing import Optional, Any
 
 import bcrypt
 from fastapi import HTTPException, status, Cookie
+from loguru import logger
 
 from app.config import SESSION_COOKIE_NAME, TELEGRAM_BOT_TOKEN
 from app.database.models import User
@@ -42,16 +43,40 @@ def verify_telegram_auth(data: dict[str, Any], bot_token: str) -> bool:
     Проверка подлинности данных от Telegram Login Widget.
     https://core.telegram.org/widgets/login#checking-authorization
     """
-    received_hash = data.get("hash")
+    received_hash = str(data.get("hash") or "").strip().lower()
     if not received_hash or not bot_token:
         return False
+
+    allowed_keys = {
+        "id",
+        "first_name",
+        "last_name",
+        "username",
+        "photo_url",
+        "auth_date",
+        "allows_write_to_pm",
+        "language_code",
+    }
     # data_check_string: поля в алфавитном порядке (кроме hash), key=value через \n
-    check_data = {k: v for k, v in data.items() if k != "hash" and v is not None}
-    parts = [f"{k}={v}" for k, v in sorted(check_data.items())]
+    check_data = {
+        k: str(v)
+        for k, v in data.items()
+        if k in allowed_keys and v is not None
+    }
+    parts = [f"{k}={check_data[k]}" for k in sorted(check_data.keys())]
     data_check_string = "\n".join(parts)
     secret_key = hashlib.sha256(bot_token.encode()).digest()
-    computed = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(computed, received_hash)
+    computed = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest().lower()
+    is_valid = hmac.compare_digest(computed, received_hash)
+    if not is_valid:
+        logger.warning(
+            "TG verify mismatch: keys={} received_hash_prefix={} computed_hash_prefix={} data_check_string={}",
+            sorted(check_data.keys()),
+            received_hash[:10],
+            computed[:10],
+            data_check_string,
+        )
+    return is_valid
 
 
 async def get_current_user(
