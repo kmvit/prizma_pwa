@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import TelegramLoginButton from '../components/TelegramLoginButton'
 
 function useBodyClass(className) {
@@ -8,9 +7,6 @@ function useBodyClass(className) {
 }
 
 export default function LoginPage() {
-  const { loginTelegram } = useAuth()
-  const [err, setErr] = useState('')
-
   useBodyClass('bodyLogin')
 
   return (
@@ -21,16 +17,8 @@ export default function LoginPage() {
         <p className="login-subtitle">Войдите через Telegram, чтобы начать тест</p>
       </div>
       <div className="login-form">
-        {err && <p style={{ color: '#fb0e12', fontSize: '14px', marginBottom: '10px', textAlign: 'center' }}>{err}</p>}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <TelegramLoginButton
-            onAuth={async (user) => {
-              await loginTelegram(user)
-              window.location.replace('/')
-            }}
-            onError={setErr}
-            buttonSize="large"
-          />
+          <TelegramLoginButton buttonSize="large" />
         </div>
       </div>
     </main>

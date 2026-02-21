@@ -423,25 +423,6 @@ body {
     max-width: 375px;
 }
 
-.app-header {
-    position: fixed;
-    top: 0;
-    right: 0;
-    padding: 12px 20px;
-    z-index: 100;
-    font-size: 14px;
-}
-
-.app-header-login {
-    color: #2b2d68;
-    font-weight: 500;
-}
-
-.app-header-user {
-    color: #2b2d68;
-    font-size: 13px;
-}
-
 .login-header {
     width: 100%;
     text-align: center;

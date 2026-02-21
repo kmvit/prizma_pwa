@@ -6,7 +6,7 @@ function useBodyClass(className) {
     return () => { document.body.className = '' }
   }, [className])
 }
-import { useNavigate, Navigate } from 'react-router-dom'
+import { useNavigate, Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
 
@@ -154,6 +154,11 @@ export default function HomePage() {
             Ответить на 8 вопросов и получить
             мини–анализ БЕСПЛАТНО
           </button>
+          {!user && (
+            <div style={{ textAlign: 'center', padding: '16px 0 0', fontSize: '14px' }}>
+              <Link to="/login">Войти</Link>
+            </div>
+          )}
         </form>
       </div>
       <div className="quiz-benefits-container">
