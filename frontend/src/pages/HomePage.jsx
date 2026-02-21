@@ -54,7 +54,7 @@ export default function HomePage() {
   const handleStart = async (e) => {
     e.preventDefault()
     if (!user) {
-      navigate('/register', { state: { name: name.trim() || undefined } })
+      navigate('/login')
       return
     }
     if (!name.trim() || !age || !gender) {
@@ -156,8 +156,7 @@ export default function HomePage() {
           </button>
           {!user && (
             <div style={{ textAlign: 'center', padding: '16px 0 0', fontSize: '14px' }}>
-              <Link to="/login" style={{ marginRight: '16px' }}>Войти</Link>
-              <Link to="/register">Регистрация</Link>
+              <Link to="/login">Войти</Link>
             </div>
           )}
         </form>

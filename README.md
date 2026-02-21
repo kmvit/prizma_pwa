@@ -45,4 +45,11 @@ Vite проксирует `/api` на backend (8080).
 
 ## Регистрация и вход
 
-Пользователи регистрируются по email + пароль. Все действия с тестом и отчётами — после входа.
+Пользователи регистрируются по email + пароль или через Telegram. Все действия с тестом и отчётами — после входа.
+
+### Telegram-авторизация
+
+1. Создайте бота через [@BotFather](https://t.me/BotFather), привяжите домен: `/setdomain`
+2. **Backend** (.env): `TELEGRAM_BOT_TOKEN=токен_от_BotFather`
+3. **Frontend** (.env): `VITE_TELEGRAM_BOT_USERNAME=имя_бота` (без @, например `PrizmaBot`)
+4. Для локальной разработки нужен HTTPS (например, [ngrok](https://ngrok.com/))

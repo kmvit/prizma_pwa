@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import InstallBanner from './components/InstallBanner'
 import HomePage from './pages/HomePage'
-import RegisterPage from './pages/RegisterPage'
 import LoginPage from './pages/LoginPage'
 import ProfilePage from './pages/ProfilePage'
 import QuestionPage from './pages/QuestionPage'
@@ -28,7 +27,7 @@ export default function App() {
     <Fragment>
       <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/profile"

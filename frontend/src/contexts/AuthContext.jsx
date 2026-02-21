@@ -33,13 +33,18 @@ export function AuthProvider({ children }) {
     await checkAuth()
   }
 
+  const loginTelegram = async (telegramUser) => {
+    await api.loginTelegram(telegramUser)
+    await checkAuth()
+  }
+
   const logout = async () => {
     await api.logout()
     setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, register, login, loginTelegram, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   )

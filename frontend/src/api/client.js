@@ -29,6 +29,12 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  loginTelegram: (telegramUser) =>
+    fetchApi('/auth/telegram', {
+      method: 'POST',
+      body: JSON.stringify(telegramUser),
+    }),
+
   logout: () =>
     fetchApi('/auth/logout', { method: 'POST' }),
 
