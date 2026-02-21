@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import TelegramLoginButton from '../components/TelegramLoginButton'
 
@@ -9,7 +9,6 @@ function useBodyClass(className) {
 
 export default function LoginPage() {
   const { loginTelegram } = useAuth()
-  const navigate = useNavigate()
   const [err, setErr] = useState('')
 
   useBodyClass('bodyLogin')
@@ -27,7 +26,7 @@ export default function LoginPage() {
           <TelegramLoginButton
             onAuth={async (user) => {
               await loginTelegram(user)
-              navigate('/')
+              window.location.replace('/')
             }}
             onError={setErr}
             buttonSize="large"
