@@ -26,6 +26,9 @@ async def _run_migrations(conn):
     for col, col_type in [
         ("telegram_id", "BIGINT"),
         ("telegram_username", "VARCHAR(100)"),
+        ("notification_6_hours_sent", "BOOLEAN DEFAULT 0"),
+        ("notification_1_hour_sent", "BOOLEAN DEFAULT 0"),
+        ("notification_10_minutes_sent", "BOOLEAN DEFAULT 0"),
     ]:
         if col not in existing:
             await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {col_type}"))

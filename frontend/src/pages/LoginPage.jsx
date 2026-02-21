@@ -11,15 +11,6 @@ export default function LoginPage() {
   const { user, loading } = useAuth()
   useBodyClass('bodyLogin')
 
-  useEffect(() => {
-    console.debug('[LOGIN_PAGE] state changed', {
-      loading,
-      isAuthed: Boolean(user),
-      isPaid: user?.is_paid,
-      testCompleted: user?.test_completed,
-    })
-  }, [loading, user])
-
   if (loading) {
     return (
       <main className="main login">
@@ -32,7 +23,6 @@ export default function LoginPage() {
 
   if (user) {
     const to = user.is_paid && user.test_completed ? '/download' : user.is_paid ? '/continue-premium' : '/question'
-    console.debug('[LOGIN_PAGE] redirect authed user', { to })
     return <Navigate to={to} replace />
   }
 

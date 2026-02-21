@@ -2,6 +2,7 @@
 """PRIZMA PWA - FastAPI backend"""
 
 import asyncio
+from datetime import timedelta
 import decimal
 import glob
 import logging
@@ -11,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Response, Cookie
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 from fastapi.responses import RedirectResponse, FileResponse
@@ -64,10 +65,42 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+async def _background_timer_checker():
+    """Фоновая проверка таймеров и отправка уведомлений (логика 1:1 из perplexy_bot)"""
+    from sqlalchemy import select, and_
+    from app.database.database import async_session
+    while True:
+        try:
+            logger.info("🔄 Запуск фоновой проверки таймеров спецпредложений...")
+            async with async_session() as session:
+                stmt = select(User).where(
+                    and_(
+                        User.special_offer_started_at.isnot(None),
+                        User.telegram_id.isnot(None),
+                    )
+                )
+                result = await session.execute(stmt)
+                users = result.scalars().all()
+                logger.info(f"📊 Найдено {len(users)} пользователей с активными таймерами")
+                for user in users:
+                    try:
+                        end = user.special_offer_started_at + timedelta(hours=12)
+                        remaining_time = max(0, (end - datetime.utcnow()).total_seconds())
+                        await check_and_send_timer_notifications(user.telegram_id, int(remaining_time))
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка при обработке пользователя {user.telegram_id}: {e}")
+            logger.info("✅ Фоновая проверка таймеров завершена")
+        except Exception as e:
+            logger.error(f"❌ Критическая ошибка в фоновой задаче таймеров: {e}")
+        await asyncio.sleep(300)  # 5 минут
+
+
 @app.on_event("startup")
 async def startup():
     await init_db()
     logger.info("Database initialized")
+    asyncio.create_task(_background_timer_checker())
+    logger.info("Background timer checker started")
 
 app.add_middleware(
     CORSMiddleware,
@@ -156,41 +189,27 @@ async def login(data: LoginRequest, response: Response):
 @app.post("/api/auth/telegram")
 async def login_telegram(data: dict, response: Response):
     """Авторизация через Telegram Login Widget"""
-    logger.info(
-        "TG auth request: keys={} has_hash={} id={} auth_date={}",
-        sorted(list(data.keys())),
-        bool(data.get("hash")),
-        data.get("id"),
-        data.get("auth_date"),
-    )
     if not TELEGRAM_BOT_TOKEN:
-        logger.error("TG auth failed: TELEGRAM_BOT_TOKEN is empty")
         raise HTTPException(status_code=503, detail="Telegram авторизация не настроена")
 
     required_fields = ("id", "first_name", "auth_date", "hash")
     if any(data.get(field) in (None, "") for field in required_fields):
-        logger.warning("TG auth failed: required fields missing")
         raise HTTPException(status_code=400, detail="Некорректные данные Telegram")
 
     try:
         auth_date = int(data.get("auth_date"))
         telegram_id = int(data.get("id"))
     except (TypeError, ValueError):
-        logger.warning("TG auth failed: invalid id/auth_date format")
         raise HTTPException(status_code=400, detail="Некорректный формат данных Telegram")
 
-    # Проверка freshness (replay attack prevention)
     if abs(time.time() - auth_date) > 300:
-        logger.warning("TG auth failed: auth_date too old/new")
         raise HTTPException(status_code=401, detail="Данные авторизации устарели")
 
     if not verify_telegram_auth(data, TELEGRAM_BOT_TOKEN):
-        logger.warning("TG auth failed: signature mismatch for telegram_id={}", telegram_id)
         raise HTTPException(status_code=401, detail="Неверная подпись Telegram")
 
     user = await db_service.get_user_by_telegram_id(telegram_id)
     if not user:
-        logger.info("TG auth: creating new telegram user id={}", telegram_id)
         user = await db_service.create_telegram_user(
             telegram_id=telegram_id,
             first_name=str(data.get("first_name", "")),
@@ -205,7 +224,6 @@ async def login_telegram(data: dict, response: Response):
         samesite="lax",
         max_age=86400 * 30,
     )
-    logger.info("TG auth success: user_id={} telegram_id={}", user.id, telegram_id)
     return {"status": "ok", "user": {"id": user.id, "email": user.email, "name": user.name}}
 
 
@@ -434,15 +452,29 @@ async def _generate_report_bg(user_id: int, report_type: str):
             )
             if not user.special_offer_started_at:
                 await db_service.update_user(user_id, {"special_offer_started_at": datetime.utcnow()})
+            if user.telegram_id:
+                from app.services.telegram_service import telegram_service
+                sent = await telegram_service.send_report_ready_notification(
+                    user.telegram_id, report_path, is_premium=(report_type == "premium")
+                )
+                if sent:
+                    logger.info(f"Telegram-уведомление о готовности отчёта отправлено user_id={user_id}")
         else:
             await db_service.update_report_generation_status(
                 user_id, report_type, ReportGenerationStatus.FAILED, error="Ошибка генерации"
             )
+            if user.telegram_id:
+                from app.services.telegram_service import telegram_service
+                await telegram_service.send_error_notification(user.telegram_id, "Ошибка генерации")
     except Exception as e:
         logger.error(f"Report generation error: {e}")
         await db_service.update_report_generation_status(
             user_id, report_type, ReportGenerationStatus.FAILED, error=str(e)
         )
+        user = await db_service.get_user_by_id(user_id)
+        if user and user.telegram_id:
+            from app.services.telegram_service import telegram_service
+            await telegram_service.send_error_notification(user.telegram_id, str(e))
 
 
 async def _generate_simple_report(user_id: int, report_type: str) -> str:
@@ -518,6 +550,42 @@ async def download_premium_report(user: User = Depends(get_current_user)):
     raise HTTPException(status_code=404, detail="Отчет не найден")
 
 
+@app.get("/api/download/report/{telegram_id}")
+async def download_report_by_telegram_id(telegram_id: int):
+    """Скачать бесплатный отчёт по telegram_id (для ссылок из Telegram-уведомлений)"""
+    user = await db_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    if user.is_premium_paid:
+        return RedirectResponse(url=f"/api/download/premium-report/{telegram_id}")
+    reports_dir = Path("reports")
+    files = glob.glob(str(reports_dir / f"prizma_report_{user.id}_*"))
+    if not files:
+        if await db_service.is_report_generating(user.id, "free"):
+            raise HTTPException(status_code=202, detail="Отчет генерируется")
+        raise HTTPException(status_code=404, detail="Отчет не найден")
+    latest = max(files, key=lambda x: Path(x).stat().st_mtime)
+    return FileResponse(latest, filename=f"prizma-report-{telegram_id}{Path(latest).suffix}")
+
+
+@app.get("/api/download/premium-report/{telegram_id}")
+async def download_premium_report_by_telegram_id(telegram_id: int):
+    """Скачать премиум-отчёт по telegram_id (для ссылок из Telegram-уведомлений)"""
+    user = await db_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    if not user.is_premium_paid:
+        raise HTTPException(status_code=400, detail="Премиум не оплачен")
+    reports_dir = Path("reports")
+    files = glob.glob(str(reports_dir / f"prizma_premium_report_{user.id}_*"))
+    if not files:
+        if await db_service.is_report_generating(user.id, "premium"):
+            raise HTTPException(status_code=202, detail="Отчет генерируется")
+        raise HTTPException(status_code=404, detail="Отчет не найден")
+    latest = max(files, key=lambda x: Path(x).stat().st_mtime)
+    return FileResponse(latest, filename=f"prizma-premium-{telegram_id}{Path(latest).suffix}")
+
+
 @app.post("/api/me/generate-premium-report")
 async def start_premium_report(background_tasks: BackgroundTasks, user: User = Depends(get_current_user)):
     if not user.is_premium_paid:
@@ -556,16 +624,54 @@ async def reset_test(user: User = Depends(get_current_user)):
 
 # --- Special offer timer ---
 
+async def check_and_send_timer_notifications(telegram_id: int, remaining_seconds: int):
+    """Проверить и отправить уведомления по таймеру спецпредложения (логика 1:1 из perplexy_bot)"""
+    try:
+        user = await db_service.get_user_by_telegram_id(telegram_id)
+        if not user:
+            return
+        hours = int(remaining_seconds // 3600)
+        minutes = int((remaining_seconds % 3600) // 60)
+        logger.info(f"⏱️ Пользователь {telegram_id}: осталось {hours:02d}:{minutes:02d}:00, флаги: 6ч={getattr(user, 'notification_6_hours_sent', False)}, 1ч={getattr(user, 'notification_1_hour_sent', False)}, 10м={getattr(user, 'notification_10_minutes_sent', False)}")
+        from app.services.telegram_service import telegram_service
+        if 6 <= hours < 7 and not getattr(user, "notification_6_hours_sent", False):
+            logger.info(f"⏰ Отправляем уведомление за 6 часов до конца акции пользователю {telegram_id}")
+            success = await telegram_service.send_special_offer_6_hours_left(telegram_id)
+            if success:
+                await db_service.update_user(user.id, {"notification_6_hours_sent": True})
+        elif 1 <= hours < 2 and not getattr(user, "notification_1_hour_sent", False):
+            logger.info(f"⏰ Отправляем уведомление за 1 час до конца акции пользователю {telegram_id}")
+            success = await telegram_service.send_special_offer_1_hour_left(telegram_id)
+            if success:
+                await db_service.update_user(user.id, {"notification_1_hour_sent": True})
+        elif hours == 0 and 10 <= minutes < 20 and not getattr(user, "notification_10_minutes_sent", False):
+            logger.info(f"⏰ Отправляем уведомление за 10 минут до конца акции пользователю {telegram_id}")
+            success = await telegram_service.send_special_offer_10_minutes_left(telegram_id)
+            if success:
+                await db_service.update_user(user.id, {"notification_10_minutes_sent": True})
+    except Exception as e:
+        logger.error(f"❌ Ошибка при проверке таймера для пользователя {telegram_id}: {e}")
+
+
+def _get_special_offer_remaining(user: User) -> tuple[bool, int]:
+    """Возвращает (active, remaining_seconds)"""
+    if not user.special_offer_started_at:
+        return False, 0
+    end = user.special_offer_started_at + timedelta(hours=12)
+    remaining = (end - datetime.utcnow()).total_seconds()
+    return remaining > 0, max(0, int(remaining))
+
+
 @app.get("/api/me/special-offer-timer")
 async def get_special_offer_timer(user: User = Depends(get_current_user)):
     if not user.special_offer_started_at:
         return {"active": False, "remaining_seconds": 0}
-    from datetime import timedelta
-    end = user.special_offer_started_at + timedelta(hours=12)
-    remaining = (end - datetime.utcnow()).total_seconds()
+    active, remaining = _get_special_offer_remaining(user)
+    if user.telegram_id and remaining > 0:
+        asyncio.create_task(check_and_send_timer_notifications(user.telegram_id, remaining))
     return {
-        "active": remaining > 0,
-        "remaining_seconds": max(0, int(remaining)),
+        "active": active,
+        "remaining_seconds": remaining,
         "discount_price": PREMIUM_PRICE_DISCOUNT,
         "original_price": PREMIUM_PRICE_ORIGINAL,
     }
@@ -575,6 +681,67 @@ async def get_special_offer_timer(user: User = Depends(get_current_user)):
 async def reset_special_offer_timer(user: User = Depends(get_current_user)):
     await db_service.update_user(user.id, {"special_offer_started_at": datetime.utcnow()})
     return {"status": "ok"}
+
+
+# --- Telegram: ручная отправка уведомлений (для админки/отладки) ---
+
+@app.post("/api/user/{telegram_id}/send-special-offer-notification", summary="Отправить уведомление о спецпредложении")
+async def send_special_offer_notification(telegram_id: int, body: dict = Body(default_factory=dict)):
+    """Отправить одно уведомление по типу: 6_hours_left, 1_hour_left, 10_minutes_left"""
+    try:
+        notification_type = body.get("notification_type", "")
+        logger.info(f"📱 Отправка уведомления о спецпредложении типа '{notification_type}' для пользователя {telegram_id}")
+        from app.services.telegram_service import telegram_service
+        success = False
+        if notification_type == "6_hours_left":
+            success = await telegram_service.send_special_offer_6_hours_left(telegram_id)
+        elif notification_type == "1_hour_left":
+            success = await telegram_service.send_special_offer_1_hour_left(telegram_id)
+        elif notification_type == "10_minutes_left":
+            success = await telegram_service.send_special_offer_10_minutes_left(telegram_id)
+        else:
+            logger.error(f"❌ Неизвестный тип уведомления: {notification_type}")
+            return {"status": "error", "message": f"Неизвестный тип уведомления: {notification_type}"}
+        if success:
+            logger.info(f"✅ Уведомление '{notification_type}' успешно отправлено пользователю {telegram_id}")
+            return {"status": "success", "message": f"Уведомление '{notification_type}' отправлено"}
+        else:
+            logger.error(f"❌ Не удалось отправить уведомление '{notification_type}' пользователю {telegram_id}")
+            return {"status": "error", "message": f"Не удалось отправить уведомление '{notification_type}'"}
+    except Exception as e:
+        logger.error(f"Error sending special offer notification: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/user/{telegram_id}/send-all-special-offer-notifications", summary="Отправить все уведомления о спецпредложении")
+async def send_all_special_offer_notifications(telegram_id: int):
+    """Отправить все три типа уведомлений (для тестирования)"""
+    try:
+        from app.services.telegram_service import telegram_service
+        notification_types = [
+            ("6_hours_left", "За 6 часов"),
+            ("1_hour_left", "За 1 час"),
+            ("10_minutes_left", "За 10 минут"),
+        ]
+        results = {}
+        for notification_type, description in notification_types:
+            try:
+                if notification_type == "6_hours_left":
+                    success = await telegram_service.send_special_offer_6_hours_left(telegram_id)
+                elif notification_type == "1_hour_left":
+                    success = await telegram_service.send_special_offer_1_hour_left(telegram_id)
+                elif notification_type == "10_minutes_left":
+                    success = await telegram_service.send_special_offer_10_minutes_left(telegram_id)
+                else:
+                    success = False
+                results[notification_type] = {"success": success, "description": description}
+            except Exception as e:
+                logger.error(f"❌ Ошибка при отправке уведомления '{notification_type}': {e}")
+                results[notification_type] = {"success": False, "error": str(e)}
+        return {"status": "ok", "results": results}
+    except Exception as e:
+        logger.error(f"Error sending all special offer notifications: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 # --- Payment ---

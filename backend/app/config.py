@@ -19,6 +19,10 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 # Frontend (редиректы после оплаты)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
+# API base URL для ссылок в Telegram-уведомлениях (скачивание отчётов).
+# Если не задан — используется FRONTEND_URL (когда /api проксируется на backend).
+API_BASE_URL = os.getenv("API_BASE_URL", FRONTEND_URL)
+
 # Perplexity API
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-pro")

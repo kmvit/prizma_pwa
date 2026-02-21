@@ -3,10 +3,10 @@ import hmac
 import secrets
 import time
 from typing import Optional, Any
+from urllib.parse import quote
 
 import bcrypt
 from fastapi import HTTPException, status, Cookie
-from loguru import logger
 
 from app.config import SESSION_COOKIE_NAME, TELEGRAM_BOT_TOKEN
 from app.database.models import User
@@ -58,24 +58,26 @@ def verify_telegram_auth(data: dict[str, Any], bot_token: str) -> bool:
         "language_code",
     }
     # data_check_string: поля в алфавитном порядке (кроме hash), key=value через \n
+    def _compute_hash(cd: dict) -> tuple[str, str]:
+        parts = [f"{k}={cd[k]}" for k in sorted(cd.keys())]
+        data_check_string = "\n".join(parts)
+        secret_key = hashlib.sha256(bot_token.encode()).digest()
+        computed = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest().lower()
+        return data_check_string, computed
+
     check_data = {
         k: str(v)
         for k, v in data.items()
         if k in allowed_keys and v is not None
     }
-    parts = [f"{k}={check_data[k]}" for k in sorted(check_data.keys())]
-    data_check_string = "\n".join(parts)
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
-    computed = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest().lower()
+    dcs, computed = _compute_hash(check_data)
     is_valid = hmac.compare_digest(computed, received_hash)
-    if not is_valid:
-        logger.warning(
-            "TG verify mismatch: keys={} received_hash_prefix={} computed_hash_prefix={} data_check_string={}",
-            sorted(check_data.keys()),
-            received_hash[:10],
-            computed[:10],
-            data_check_string,
-        )
+    if not is_valid and "photo_url" in check_data:
+        # Fallback: виджет иногда использует URL-encoded photo_url при проверке подписи
+        check_data_enc = {**check_data, "photo_url": quote(check_data["photo_url"], safe="")}
+        _, computed_enc = _compute_hash(check_data_enc)
+        if hmac.compare_digest(computed_enc, received_hash):
+            is_valid = True
     return is_valid
 
 

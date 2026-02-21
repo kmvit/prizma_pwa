@@ -18,6 +18,9 @@ loguru>=0.7.0
 bcrypt>=4.0.0,<5.0.0
 python-multipart>=0.0.6
 
+# Telegram Bot API
+aiohttp>=3.9.0
+
 # Генерация PDF отчетов
 loguru>=0.7.0
 httpx>=0.25.0
