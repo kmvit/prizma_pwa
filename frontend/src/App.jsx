@@ -88,7 +88,8 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/download/report/:telegramId" element={<DownloadReportByLinkPage />} />
+      <Route path="/download/premium-report/:telegramId" element={<DownloadReportByLinkPage type="premium" />} />
+      <Route path="/download/report/:telegramId" element={<DownloadReportByLinkPage type="free" />} />
       <Route
         path="/download"
         element={

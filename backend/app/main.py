@@ -556,8 +556,6 @@ async def download_report_by_telegram_id(telegram_id: int):
     user = await db_service.get_user_by_telegram_id(telegram_id)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-    if user.is_premium_paid:
-        return RedirectResponse(url=f"/api/download/premium-report/{telegram_id}")
     reports_dir = Path("reports")
     files = glob.glob(str(reports_dir / f"prizma_report_{user.id}_*"))
     if not files:

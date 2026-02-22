@@ -4,8 +4,10 @@ import { useParams } from 'react-router-dom'
 /**
  * Публичная страница для скачивания отчёта по ссылке из Telegram-уведомления.
  * Открывается без авторизации, получает файл через fetch и программно запускает скачивание.
+ * @param {object} props
+ * @param {'free'|'premium'} props.type - free: бесплатный отчёт, premium: премиум-отчёт
  */
-export default function DownloadReportByLinkPage() {
+export default function DownloadReportByLinkPage({ type = 'free' }) {
   const { telegramId } = useParams()
   const [status, setStatus] = useState('loading') // loading | success | error
   const [message, setMessage] = useState('')
@@ -21,7 +23,8 @@ export default function DownloadReportByLinkPage() {
 
     async function doDownload() {
       try {
-        const res = await fetch(`/api/download/report/${telegramId}`)
+        const apiPath = type === 'premium' ? '/api/download/premium-report' : '/api/download/report'
+        const res = await fetch(`${apiPath}/${telegramId}`)
         if (cancelled) return
 
         if (!res.ok) {
@@ -63,7 +66,7 @@ export default function DownloadReportByLinkPage() {
 
     doDownload()
     return () => { cancelled = true }
-  }, [telegramId])
+  }, [telegramId, type])
 
   return (
     <main className="main download" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

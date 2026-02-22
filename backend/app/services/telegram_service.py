@@ -396,7 +396,7 @@ PRIZMA – ваш личный тренер по развитию, доступ�
             base = self.webapp_url or self.api_base_url or ""
             if not base:
                 return ""
-            path = f"/download/report/{telegram_id}"
+            path = f"/download/premium-report/{telegram_id}" if is_premium else f"/download/report/{telegram_id}"
             return f"{base.rstrip('/')}{path}"
         except Exception:
             return ""
