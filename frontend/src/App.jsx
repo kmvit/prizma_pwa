@@ -88,6 +88,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/download/report/:telegramId" element={<DownloadReportByLinkPage />} />
       <Route
         path="/download"
         element={
@@ -96,7 +97,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/download/report/:telegramId" element={<DownloadReportByLinkPage />} />
       <Route path="/payment/success" element={<PaymentSuccessPage />} />
       <Route path="/payment/fail" element={<PaymentFailPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
