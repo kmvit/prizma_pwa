@@ -391,13 +391,13 @@ PRIZMA – ваш личный тренер по развитию, доступ�
             return False
 
     def _build_download_url(self, telegram_id: int, is_premium: bool) -> str:
-        """Собрать абсолютный URL для скачивания отчета"""
+        """Собрать URL страницы PWA для скачивания отчёта (fetch + программное скачивание)"""
         try:
-            base = self.api_base_url or self.webapp_url or ""
+            base = self.webapp_url or self.api_base_url or ""
             if not base:
                 return ""
-            path = f"/api/download/premium-report/{telegram_id}" if is_premium else f"/api/download/report/{telegram_id}"
-            return f"{base.rstrip('/')}{path}?download=1"
+            path = f"/download/report/{telegram_id}"
+            return f"{base.rstrip('/')}{path}"
         except Exception:
             return ""
 

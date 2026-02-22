@@ -12,6 +12,7 @@ import OfferPage from './pages/OfferPage'
 import AnswersPage from './pages/AnswersPage'
 import PricePage from './pages/PricePage'
 import DownloadPage from './pages/DownloadPage'
+import DownloadReportByLinkPage from './pages/DownloadReportByLinkPage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import PaymentFailPage from './pages/PaymentFailPage'
 import ContinuePremiumPage from './pages/ContinuePremiumPage'
@@ -95,6 +96,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/download/report/:telegramId" element={<DownloadReportByLinkPage />} />
       <Route path="/payment/success" element={<PaymentSuccessPage />} />
       <Route path="/payment/fail" element={<PaymentFailPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

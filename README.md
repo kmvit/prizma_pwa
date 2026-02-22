@@ -72,4 +72,4 @@ Vite проксирует `/api` на backend (8080).
 - `POST /api/user/{telegram_id}/send-special-offer-notification` — body: `{"notification_type": "6_hours_left" | "1_hour_left" | "10_minutes_left"}`
 - `POST /api/user/{telegram_id}/send-all-special-offer-notifications` — отправить все три уведомления
 
-**Ссылки на скачивание из уведомлений:** `GET /api/download/report/{telegram_id}` и `GET /api/download/premium-report/{telegram_id}`.
+**Скачивание из уведомлений:** В Telegram уходит ссылка на страницу PWA `/download/report/{telegram_id}`. Страница делает fetch к API и программно запускает скачивание. API-эндпоинты: `GET /api/download/report/{telegram_id}` и `GET /api/download/premium-report/{telegram_id}`.
