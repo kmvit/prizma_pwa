@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import { useAuth } from '../contexts/AuthContext'
+
+const LOGIN_TIMEOUT_MS = 15000
 
 /**
  * Обработка redirect от Telegram Login Widget.
@@ -10,11 +11,11 @@ import { useAuth } from '../contexts/AuthContext'
 export default function TelegramAuthCallbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { checkAuth } = useAuth()
   const [status, setStatus] = useState('Ожидание...')
+  const doneRef = useRef(false)
 
   useEffect(() => {
-    let cancelled = false
+    if (doneRef.current) return
     const hash = searchParams.get('hash')
     if (!hash) {
       setStatus('Ошибка: нет данных авторизации')
@@ -22,25 +23,42 @@ export default function TelegramAuthCallbackPage() {
       return
     }
 
-    const payload = Object.fromEntries(searchParams.entries())
-
-    const login = async () => {
-      try {
-        setStatus('Вход...')
-        await api.loginTelegram(payload)
-        await checkAuth()
-        if (!cancelled) navigate('/question', { replace: true })
-      } catch (e) {
-        if (!cancelled) {
-          setStatus(`Ошибка: ${e?.message || 'не удалось войти'}`)
-          setTimeout(() => navigate('/login'), 2000)
-        }
-      }
+    const payload = {
+      id: parseInt(searchParams.get('id') || '0', 10),
+      first_name: searchParams.get('first_name') || '',
+      last_name: searchParams.get('last_name') || undefined,
+      username: searchParams.get('username') || undefined,
+      photo_url: searchParams.get('photo_url') || undefined,
+      auth_date: parseInt(searchParams.get('auth_date') || '0', 10),
+      hash,
     }
 
-    login()
-    return () => { cancelled = true }
-  }, [searchParams, navigate, checkAuth])
+    const timeoutId = setTimeout(() => {
+      if (doneRef.current) return
+      doneRef.current = true
+      setStatus('Таймаут. Проверьте соединение.')
+      setTimeout(() => navigate('/login'), 2000)
+    }, LOGIN_TIMEOUT_MS)
+
+    setStatus('Вход...')
+    api
+      .loginTelegram(payload)
+      .then(() => {
+        if (doneRef.current) return
+        doneRef.current = true
+        clearTimeout(timeoutId)
+        window.location.replace('/question')
+      })
+      .catch((e) => {
+        if (doneRef.current) return
+        doneRef.current = true
+        clearTimeout(timeoutId)
+        setStatus(`Ошибка: ${e?.message || 'не удалось войти'}`)
+        setTimeout(() => navigate('/login'), 2000)
+      })
+
+    return () => clearTimeout(timeoutId)
+  }, [searchParams, navigate])
 
   return (
     <main className="main login">
