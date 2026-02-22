@@ -565,7 +565,7 @@ async def download_report_by_telegram_id(telegram_id: int):
             raise HTTPException(status_code=202, detail="Отчет генерируется")
         raise HTTPException(status_code=404, detail="Отчет не найден")
     latest = max(files, key=lambda x: Path(x).stat().st_mtime)
-    return FileResponse(latest, filename=f"prizma-report-{telegram_id}{Path(latest).suffix}")
+    return FileResponse(latest, filename=f"prizma-report-{telegram_id}{Path(latest).suffix}", media_type="application/octet-stream")
 
 
 @app.get("/api/download/premium-report/{telegram_id}")
@@ -583,7 +583,7 @@ async def download_premium_report_by_telegram_id(telegram_id: int):
             raise HTTPException(status_code=202, detail="Отчет генерируется")
         raise HTTPException(status_code=404, detail="Отчет не найден")
     latest = max(files, key=lambda x: Path(x).stat().st_mtime)
-    return FileResponse(latest, filename=f"prizma-premium-{telegram_id}{Path(latest).suffix}")
+    return FileResponse(latest, filename=f"prizma-premium-{telegram_id}{Path(latest).suffix}", media_type="application/octet-stream")
 
 
 @app.post("/api/me/generate-premium-report")
