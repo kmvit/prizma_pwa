@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import TelegramLoginButton from '../components/TelegramLoginButton'
 
 function useBodyClass(className) {
   useEffect(() => { document.body.className = className; return () => { document.body.className = '' } }, [className])
 }
 
 export default function RegisterPage() {
-  const { register, loginTelegram } = useAuth()
+  const { register } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -48,17 +47,6 @@ export default function RegisterPage() {
         </div>
         {err && <p style={{ color: '#fb0e12', fontSize: '14px', marginBottom: '10px' }}>{err}</p>}
         <button type="submit" className="button">Зарегистрироваться</button>
-        <p style={{ textAlign: 'center', margin: '16px 0 8px', opacity: 0.8, fontSize: '14px' }}>— или —</p>
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <TelegramLoginButton
-            onAuth={async (user) => {
-              await loginTelegram(user)
-              navigate('/')
-            }}
-            onError={setErr}
-            buttonSize="large"
-          />
-        </div>
       </form>
       <p style={{ textAlign: 'center' }}>Уже есть аккаунт? <Link to="/login">Войти</Link></p>
     </main>
