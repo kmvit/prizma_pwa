@@ -4,12 +4,32 @@
 """
 
 import os
+import base64
+import urllib.parse
 import json
 import aiohttp
 from pathlib import Path
 
 from app.config import FRONTEND_URL, TELEGRAM_BOT_TOKEN, API_BASE_URL
 from loguru import logger
+
+
+def decode_start_param(param: str) -> str | None:
+    """
+    Декодирует параметр start из deep link (https://t.me/Bot?start=...).
+    Frontend кодирует: base64(encodeURIComponent(email)) без trailing =.
+    Returns: email или None при ошибке.
+    """
+    if not param or not param.strip():
+        return None
+    try:
+        pad = 4 - len(param) % 4
+        if pad != 4:
+            param += "=" * pad
+        decoded = base64.b64decode(param).decode("utf-8")
+        return urllib.parse.unquote(decoded)
+    except Exception:
+        return None
 
 
 class TelegramService:

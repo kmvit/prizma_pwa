@@ -1008,8 +1008,28 @@ body {
     color: #fff;
 }
 
-.decoding-download-button + .decoding-download-button {
+.decoding-download-button + .decoding-download-button,
+.decoding-download-button + .decoding-telegram-button,
+.decoding-telegram-button + .decoding-download-button {
     margin-top: 8px;
+}
+
+.decoding-telegram-button {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #0088cc !important;
+}
+
+.decoding-telegram-button:hover {
+    background: #0077b5 !important;
+    color: #fff;
+}
+
+.decoding-telegram-button .telegram-icon {
+    flex-shrink: 0;
 }
 
 .decoding-download .decoding-processing {
@@ -2360,6 +2380,19 @@ a.quiz-form-notice {
     max-width: 142px;
     border-radius: 25px;
     padding: 0 10px;
+}
+
+.link-telegram-bot {
+    text-decoration: none;
+    font-size: 14px;
+    gap: 6px;
+    background: #0088cc !important;
+    max-width: 142px;
+}
+
+.link-telegram-bot:hover {
+    background: #0077b5 !important;
+    color: #fff;
 }
 
 .quiz-completed-base .quiz-full-benefit-block {

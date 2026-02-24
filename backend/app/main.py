@@ -102,6 +102,24 @@ async def startup():
     asyncio.create_task(_background_timer_checker())
     logger.info("Background timer checker started")
 
+    # Запуск Telegram-бота (polling) в фоне
+    try:
+        from app.bot.bot_setup import start_polling
+        asyncio.create_task(start_polling())
+        logger.info("Telegram bot polling started")
+    except Exception as e:
+        logger.warning(f"Telegram bot polling not started: {e}")
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Остановить бота при завершении приложения"""
+    try:
+        from app.bot.bot_setup import stop_polling, close_bot
+        await stop_polling()
+        await close_bot()
+    except Exception as e:
+        logger.debug(f"Bot shutdown: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_URL, "http://localhost:5173", "http://127.0.0.1:5173"],
