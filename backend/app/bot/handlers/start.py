@@ -1,8 +1,12 @@
 """
 Обработчик команды /start.
 При первом запуске запрашивает email и привязывает Telegram к аккаунту на сайте.
+После привязки отправляет в бот готовые отчёты пользователя.
 """
+import glob
 import re
+from pathlib import Path
+
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -11,13 +15,51 @@ from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.config import FRONTEND_URL
 from app.services.database_service import db_service
+from app.services.telegram_service import telegram_service
 from loguru import logger
 
 router = Router()
+REPORTS_DIR = Path("reports")
 
 
 class LinkStates(StatesGroup):
     waiting_email = State()
+
+
+def _get_latest_report_path(user_id: int, is_premium: bool) -> str | None:
+    """Найти путь к последнему готовому отчёту пользователя"""
+    if not REPORTS_DIR.exists():
+        return None
+    pattern = f"prizma_premium_report_{user_id}_*" if is_premium else f"prizma_report_{user_id}_*"
+    files = glob.glob(str(REPORTS_DIR / pattern))
+    if not files:
+        return None
+    latest = max(files, key=lambda x: Path(x).stat().st_mtime)
+    return latest if Path(latest).exists() else None
+
+
+async def _send_ready_reports(telegram_id: int, user_id: int, is_premium_paid: bool):
+    """Отправить в бот все готовые отчёты пользователя"""
+    sent_any = False
+    # Бесплатный отчёт
+    free_path = _get_latest_report_path(user_id, is_premium=False)
+    if free_path:
+        success = await telegram_service.send_report_ready_notification(
+            telegram_id, free_path, is_premium=False
+        )
+        if success:
+            sent_any = True
+    # Премиум отчёт (если оплачен)
+    if is_premium_paid:
+        premium_path = _get_latest_report_path(user_id, is_premium=True)
+        if premium_path:
+            success = await telegram_service.send_report_ready_notification(
+                telegram_id, premium_path, is_premium=True
+            )
+            if success:
+                sent_any = True
+    if sent_any:
+        logger.info(f"📤 Отчёты отправлены в Telegram пользователю {telegram_id}")
 
 
 def _is_valid_email(text: str) -> bool:
@@ -126,6 +168,11 @@ async def process_email(message: Message, state: FSMContext):
         logger.info(f"🔗 Telegram {chat_id} привязан к пользователю {user.id} (email: {text})")
         await state.clear()
         await message.answer("✅ Аккаунт успешно привязан! Теперь вы будете получать отчёты в Telegram.")
+
+        # Отправить готовые отчёты, если они есть
+        user_updated = await db_service.get_user_by_id(user.id)
+        await _send_ready_reports(chat_id, user.id, user_updated.is_premium_paid if user_updated else False)
+
         await _send_welcome(message)
 
     except Exception as e:

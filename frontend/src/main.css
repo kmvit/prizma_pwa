@@ -1020,7 +1020,10 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    min-width: 240px;
+    padding: 10px 24px;
     background: #0088cc !important;
+    white-space: nowrap;
 }
 
 .decoding-telegram-button:hover {
@@ -2387,7 +2390,10 @@ a.quiz-form-notice {
     font-size: 14px;
     gap: 6px;
     background: #0088cc !important;
-    max-width: 142px;
+    min-width: 220px;
+    max-width: 280px;
+    padding: 0 16px;
+    white-space: nowrap;
 }
 
 .link-telegram-bot:hover {
