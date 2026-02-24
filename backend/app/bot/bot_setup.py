@@ -3,9 +3,10 @@
 Использует polling для получения обновлений (не требует webhook).
 """
 from aiogram import Bot, Dispatcher
+from aiogram.types import MenuButtonWebApp, WebAppInfo
 from loguru import logger
 
-from app.config import TELEGRAM_BOT_TOKEN
+from app.config import TELEGRAM_BOT_TOKEN, FRONTEND_URL
 from app.bot.handlers import start
 
 bot = None
@@ -31,6 +32,20 @@ async def start_polling():
             await bot.delete_webhook(drop_pending_updates=True)
         except Exception as e:
             logger.debug(f"Webhook не настроен или ошибка: {e}")
+
+        # Кнопка приложения (меню) — появляется рядом с полем ввода
+        if FRONTEND_URL:
+            try:
+                await bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(
+                        text="Открыть приложение",
+                        web_app=WebAppInfo(url=FRONTEND_URL.rstrip("/") + "/"),
+                    )
+                )
+                logger.info("✅ Кнопка приложения установлена")
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось установить кнопку приложения: {e}")
+
         await dp.start_polling(bot, skip_updates=True)
     except Exception as e:
         logger.error(f"❌ Ошибка при запуске polling: {e}")
