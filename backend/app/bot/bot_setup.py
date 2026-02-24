@@ -3,6 +3,7 @@
 Использует polling для получения обновлений (не требует webhook).
 """
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 from loguru import logger
 
@@ -14,7 +15,7 @@ dp = None
 
 if TELEGRAM_BOT_TOKEN:
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    dp = Dispatcher()
+    dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(start.router)
     logger.info("✅ Aiogram бот инициализирован")
 else:
