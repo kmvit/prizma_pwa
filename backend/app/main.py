@@ -26,6 +26,7 @@ from app.auth.auth import (
     verify_telegram_auth,
 )
 from app.config import (
+    BASE_DIR,
     FRONTEND_URL,
     TELEGRAM_BOT_TOKEN,
     FREE_QUESTIONS_LIMIT,
@@ -417,7 +418,7 @@ async def get_progress(user: User = Depends(get_current_user)):
 
 async def _generate_simple_report_async(user_id: int, report_type: str) -> str:
     """Простая генерация отчета (без Perplexity) - текст по Q&A"""
-    reports_dir = Path("reports")
+    reports_dir = BASE_DIR / "reports"
     reports_dir.mkdir(exist_ok=True)
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     prefix = f"prizma_premium_report_{user_id}" if report_type == "premium" else f"prizma_report_{user_id}"
@@ -510,7 +511,7 @@ async def start_report_generation(background_tasks: BackgroundTasks, user: User 
     if await db_service.is_report_generating(user.id, "free"):
         return {"status": "already_processing", "message": "Отчет уже генерируется"}
 
-    reports_dir = Path("reports")
+    reports_dir = BASE_DIR / "reports"
     for pattern in [f"prizma_report_{user.id}_*.pdf", f"prizma_report_{user.id}_*.txt"]:
         existing = glob.glob(str(reports_dir / pattern))
         if existing:
@@ -540,7 +541,7 @@ async def download_report(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Тест не завершен")
     if user.is_premium_paid:
         return RedirectResponse(url="/api/me/download/premium-report")
-    reports_dir = Path("reports")
+    reports_dir = BASE_DIR / "reports"
     files = glob.glob(str(reports_dir / f"prizma_report_{user.id}_*"))
     if files:
         latest = max(files, key=lambda x: Path(x).stat().st_mtime)
@@ -557,7 +558,7 @@ async def download_report(user: User = Depends(get_current_user)):
 async def download_premium_report(user: User = Depends(get_current_user)):
     if not user.is_premium_paid:
         raise HTTPException(status_code=400, detail="Премиум не оплачен")
-    reports_dir = Path("reports")
+    reports_dir = BASE_DIR / "reports"
     for pattern in [f"prizma_premium_report_{user.id}_*"]:
         files = glob.glob(str(reports_dir / pattern))
         if files:
@@ -574,7 +575,7 @@ async def download_report_by_telegram_id(telegram_id: int):
     user = await db_service.get_user_by_telegram_id(telegram_id)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-    reports_dir = Path("reports")
+    reports_dir = BASE_DIR / "reports"
     files = glob.glob(str(reports_dir / f"prizma_report_{user.id}_*"))
     if not files:
         if await db_service.is_report_generating(user.id, "free"):
@@ -592,7 +593,7 @@ async def download_premium_report_by_telegram_id(telegram_id: int):
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     if not user.is_premium_paid:
         raise HTTPException(status_code=400, detail="Премиум не оплачен")
-    reports_dir = Path("reports")
+    reports_dir = BASE_DIR / "reports"
     files = glob.glob(str(reports_dir / f"prizma_premium_report_{user.id}_*"))
     if not files:
         if await db_service.is_report_generating(user.id, "premium"):

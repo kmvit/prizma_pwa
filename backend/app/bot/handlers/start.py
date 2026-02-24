@@ -13,13 +13,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.config import FRONTEND_URL
+from app.config import BASE_DIR, FRONTEND_URL
 from app.services.database_service import db_service
 from app.services.telegram_service import telegram_service
 from loguru import logger
 
 router = Router()
-REPORTS_DIR = Path("reports")
+REPORTS_DIR = BASE_DIR / "reports"
 
 
 class LinkStates(StatesGroup):
@@ -38,11 +38,26 @@ def _get_latest_report_path(user_id: int, is_premium: bool) -> str | None:
     return latest if Path(latest).exists() else None
 
 
-async def _send_ready_reports(telegram_id: int, user_id: int, is_premium_paid: bool):
+def _resolve_report_path(stored_path: str | None, user_id: int, is_premium: bool) -> str | None:
+    """Проверить путь из БД (абсолютный или относительный) или найти файл на диске"""
+    if stored_path:
+        p = Path(stored_path)
+        if p.exists():
+            return stored_path
+        if not p.is_absolute():
+            alt = BASE_DIR / stored_path
+            if alt.exists():
+                return str(alt)
+    return _get_latest_report_path(user_id, is_premium)
+
+
+async def _send_ready_reports(telegram_id: int, user_id: int, is_premium_paid: bool, user=None):
     """Отправить в бот все готовые отчёты пользователя"""
     sent_any = False
-    # Бесплатный отчёт
-    free_path = _get_latest_report_path(user_id, is_premium=False)
+    # Бесплатный отчёт: приоритет — путь из БД, fallback — поиск на диске
+    free_path = _resolve_report_path(
+        user.free_report_path if user else None, user_id, is_premium=False
+    )
     if free_path:
         success = await telegram_service.send_report_ready_notification(
             telegram_id, free_path, is_premium=False
@@ -51,7 +66,9 @@ async def _send_ready_reports(telegram_id: int, user_id: int, is_premium_paid: b
             sent_any = True
     # Премиум отчёт (если оплачен)
     if is_premium_paid:
-        premium_path = _get_latest_report_path(user_id, is_premium=True)
+        premium_path = _resolve_report_path(
+            user.premium_report_path if user else None, user_id, is_premium=True
+        )
         if premium_path:
             success = await telegram_service.send_report_ready_notification(
                 telegram_id, premium_path, is_premium=True
@@ -171,7 +188,11 @@ async def process_email(message: Message, state: FSMContext):
 
         # Отправить готовые отчёты, если они есть
         user_updated = await db_service.get_user_by_id(user.id)
-        await _send_ready_reports(chat_id, user.id, user_updated.is_premium_paid if user_updated else False)
+        await _send_ready_reports(
+            chat_id, user.id,
+            user_updated.is_premium_paid if user_updated else False,
+            user=user_updated
+        )
 
         await _send_welcome(message)
 
