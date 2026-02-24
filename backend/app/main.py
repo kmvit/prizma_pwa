@@ -471,7 +471,9 @@ async def _generate_report_bg(user_id: int, report_type: str):
             )
             if not user.special_offer_started_at:
                 await db_service.update_user(user_id, {"special_offer_started_at": datetime.utcnow()})
-            if user.telegram_id:
+            # Обновляем user перед отправкой — он мог привязать Telegram во время генерации
+            user = await db_service.get_user_by_id(user_id)
+            if user and user.telegram_id:
                 from app.services.telegram_service import telegram_service
                 sent = await telegram_service.send_report_ready_notification(
                     user.telegram_id, report_path, is_premium=(report_type == "premium")
@@ -482,7 +484,8 @@ async def _generate_report_bg(user_id: int, report_type: str):
             await db_service.update_report_generation_status(
                 user_id, report_type, ReportGenerationStatus.FAILED, error="Ошибка генерации"
             )
-            if user.telegram_id:
+            user = await db_service.get_user_by_id(user_id)
+            if user and user.telegram_id:
                 from app.services.telegram_service import telegram_service
                 await telegram_service.send_error_notification(user.telegram_id, "Ошибка генерации")
     except Exception as e:

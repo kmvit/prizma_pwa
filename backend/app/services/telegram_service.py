@@ -101,6 +101,7 @@ class TelegramService:
             logger.warning("⚠️ Telegram отключен, уведомление не отправлено")
             return False
 
+        logger.info(f"📤 Отправка отчёта в Telegram пользователю {telegram_id}: {report_path}")
         try:
             report_type = "премиум" if is_premium else "бесплатный"
             message = f"""

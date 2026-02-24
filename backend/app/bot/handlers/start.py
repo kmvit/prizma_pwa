@@ -128,6 +128,8 @@ async def cmd_start(message: Message, state: FSMContext):
         user = await db_service.get_user_by_telegram_id(chat_id)
         if user:
             logger.info(f"👤 /start от {chat_id}: пользователь уже привязан (user_id={user.id})")
+            # Отправить готовые отчёты, если они есть (могли не дойти при генерации)
+            await _send_ready_reports(chat_id, user.id, user.is_premium_paid, user=user)
             await _send_welcome(message)
             return
 
