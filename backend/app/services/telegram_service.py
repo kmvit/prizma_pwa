@@ -60,7 +60,7 @@ class TelegramService:
             return False
 
     async def send_document(self, chat_id: int, file_path: str, caption: str = "") -> bool:
-        """Отправить документ (файл)"""
+        """Отправить документ (файл) — логика 1:1 из perplexy_bot"""
         if not self.enabled:
             logger.warning("⚠️ Telegram отключен, документ не отправлен")
             return False
