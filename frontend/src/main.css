@@ -2411,6 +2411,12 @@ a.quiz-form-notice {
     color: #fff;
 }
 
+.telegram-button-above-title {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
 .quiz-completed-base .quiz-full-benefit-block {
     background-color: transparent;
 }
