@@ -4,10 +4,10 @@
 """
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import MenuButtonWebApp, WebAppInfo
+from aiogram.types import MenuButtonDefault
 from loguru import logger
 
-from app.config import TELEGRAM_BOT_TOKEN, FRONTEND_URL
+from app.config import TELEGRAM_BOT_TOKEN
 from app.bot.handlers import start
 
 bot = None
@@ -34,18 +34,12 @@ async def start_polling():
         except Exception as e:
             logger.debug(f"Webhook не настроен или ошибка: {e}")
 
-        # Кнопка приложения (меню) — появляется рядом с полем ввода
-        if FRONTEND_URL:
-            try:
-                await bot.set_chat_menu_button(
-                    menu_button=MenuButtonWebApp(
-                        text="Открыть приложение",
-                        web_app=WebAppInfo(url=FRONTEND_URL.rstrip("/") + "/"),
-                    )
-                )
-                logger.info("✅ Кнопка приложения установлена")
-            except Exception as e:
-                logger.warning(f"⚠️ Не удалось установить кнопку приложения: {e}")
+        # Убираем кастомную кнопку «Открыть приложение», возвращаем стандартное меню
+        try:
+            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+            logger.info("✅ Кнопка меню сброшена на стандартную")
+        except Exception as e:
+            logger.debug(f"Сброс кнопки меню: {e}")
 
         await dp.start_polling(bot, skip_updates=True)
     except Exception as e:
