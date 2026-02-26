@@ -314,6 +314,22 @@ async def push_unsubscribe(body: dict = Body(default_factory=dict), user: User =
     return {"status": "ok"}
 
 
+@app.post("/api/me/send-test-push")
+async def send_test_push(user: User = Depends(get_current_user)):
+    """Отправить тестовый push на все подписки пользователя (для проверки)"""
+    from app.services.push_service import push_service
+    if not push_service.enabled:
+        raise HTTPException(status_code=503, detail="Web Push не настроен (VAPID)")
+    subs = await db_service.get_push_subscriptions(user.id)
+    if not subs:
+        raise HTTPException(status_code=400, detail="Нет push-подписок. Нажмите «Включить уведомления» на странице предложения.")
+    results = []
+    for s in subs:
+        ok = await push_service.send_premium_offer(s.endpoint, s.p256dh, s.auth)
+        results.append({"endpoint": s.endpoint[:50] + "...", "sent": ok})
+    return {"status": "ok", "results": results}
+
+
 @app.post("/api/me/profile", response_model=UserProfileResponse)
 async def update_profile(data: UserProfileUpdate, user: User = Depends(get_current_user)):
     await db_service.update_user_profile(user.id, name=data.name, age=data.age, gender=data.gender)
@@ -755,35 +771,6 @@ async def get_special_offer_timer(user: User = Depends(get_current_user)):
 @app.post("/api/me/reset-special-offer-timer")
 async def reset_special_offer_timer(user: User = Depends(get_current_user)):
     await db_service.update_user(user.id, {"special_offer_started_at": datetime.utcnow()})
-    return {"status": "ok"}
-
-
-# --- Web Push ---
-
-@app.get("/api/me/push-vapid-public")
-async def get_push_vapid_public():
-    """Публичный VAPID ключ для подписки на push (нужен frontend)"""
-    if not VAPID_PUBLIC_KEY:
-        raise HTTPException(status_code=503, detail="Web Push не настроен")
-    return {"vapid_public_key": VAPID_PUBLIC_KEY}
-
-
-@app.post("/api/me/push-subscribe")
-async def push_subscribe(data: PushSubscribeRequest, user: User = Depends(get_current_user)):
-    """Сохранить push-подписку пользователя"""
-    keys = data.keys or {}
-    p256dh = keys.get("p256dh", "")
-    auth = keys.get("auth", "")
-    if not p256dh or not auth:
-        raise HTTPException(status_code=400, detail="Нужны keys.p256dh и keys.auth")
-    await db_service.save_push_subscription(user.id, data.endpoint, p256dh, auth)
-    return {"status": "ok"}
-
-
-@app.delete("/api/me/push-subscribe")
-async def push_unsubscribe(endpoint: str, user: User = Depends(get_current_user)):
-    """Удалить push-подписку"""
-    await db_service.delete_push_subscription(user.id, endpoint)
     return {"status": "ok"}
 
 

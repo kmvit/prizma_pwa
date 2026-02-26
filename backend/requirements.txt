@@ -21,6 +21,7 @@ python-multipart>=0.0.6
 # Web Push
 pywebpush>=1.14.0
 py-vapid>=1.9.0
+cryptography>=42.0.0
 
 # Telegram Bot API
 aiohttp>=3.9.0

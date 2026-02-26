@@ -24,8 +24,29 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 API_BASE_URL = os.getenv("API_BASE_URL", FRONTEND_URL)
 
 # Web Push (VAPID): генерировать ключи: python -m py_vapid --gen
-VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()  # PEM-строка или путь к .pem
-VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()   # для frontend (base64)
+# VAPID_PUBLIC_KEY — base64url публичный ключ (НЕ путь к файлу!).
+# Извлечь: python -m scripts.extract_vapid_public
+def _resolve_vapid_public() -> str:
+    """Если VAPID_PUBLIC_KEY пустой или путь к .pem — извлечь из private_key.pem"""
+    val = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+    # Длинная base64 строка (~88 символов) — уже правильный ключ
+    if len(val) >= 80 and not val.endswith(".pem"):
+        return val
+    priv_raw = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+    priv_path = Path(priv_raw) if priv_raw else BASE_DIR / "private_key.pem"
+    if not priv_path.is_absolute():
+        priv_path = BASE_DIR / priv_path
+    if priv_path.exists():
+        try:
+            from app.utils.vapid_keys import extract_public_key_from_pem
+            return extract_public_key_from_pem(priv_path)
+        except Exception:
+            pass
+    return val or ""
+
+
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()  # путь к private_key.pem
+VAPID_PUBLIC_KEY = _resolve_vapid_public() or os.getenv("VAPID_PUBLIC_KEY", "").strip()
 
 # SMTP (email-уведомления)
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
