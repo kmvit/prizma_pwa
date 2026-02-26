@@ -1,11 +1,8 @@
 """
 Обработчик команды /start.
 При первом запуске запрашивает email и привязывает Telegram к аккаунту на сайте.
-После привязки отправляет в бот готовые отчёты пользователя.
 """
-import glob
 import re
-from pathlib import Path
 
 from aiogram import Router
 from aiogram.filters import CommandStart
@@ -13,70 +10,15 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.config import BASE_DIR, FRONTEND_URL
+from app.config import FRONTEND_URL
 from app.services.database_service import db_service
-from app.services.telegram_service import telegram_service
 from loguru import logger
 
 router = Router()
-REPORTS_DIR = BASE_DIR / "reports"
 
 
 class LinkStates(StatesGroup):
     waiting_email = State()
-
-
-def _get_latest_report_path(user_id: int, is_premium: bool) -> str | None:
-    """Найти путь к последнему готовому отчёту пользователя"""
-    if not REPORTS_DIR.exists():
-        return None
-    pattern = f"prizma_premium_report_{user_id}_*" if is_premium else f"prizma_report_{user_id}_*"
-    files = glob.glob(str(REPORTS_DIR / pattern))
-    if not files:
-        return None
-    latest = max(files, key=lambda x: Path(x).stat().st_mtime)
-    return latest if Path(latest).exists() else None
-
-
-def _resolve_report_path(stored_path: str | None, user_id: int, is_premium: bool) -> str | None:
-    """Проверить путь из БД (абсолютный или относительный) или найти файл на диске"""
-    if stored_path:
-        p = Path(stored_path)
-        if p.exists():
-            return stored_path
-        if not p.is_absolute():
-            alt = BASE_DIR / stored_path
-            if alt.exists():
-                return str(alt)
-    return _get_latest_report_path(user_id, is_premium)
-
-
-async def _send_ready_reports(telegram_id: int, user_id: int, is_premium_paid: bool, user=None):
-    """Отправить в бот все готовые отчёты пользователя"""
-    sent_any = False
-    # Бесплатный отчёт: приоритет — путь из БД, fallback — поиск на диске
-    free_path = _resolve_report_path(
-        user.free_report_path if user else None, user_id, is_premium=False
-    )
-    if free_path:
-        success = await telegram_service.send_report_ready_notification(
-            telegram_id, free_path, is_premium=False
-        )
-        if success:
-            sent_any = True
-    # Премиум отчёт (если оплачен)
-    if is_premium_paid:
-        premium_path = _resolve_report_path(
-            user.premium_report_path if user else None, user_id, is_premium=True
-        )
-        if premium_path:
-            success = await telegram_service.send_report_ready_notification(
-                telegram_id, premium_path, is_premium=True
-            )
-            if success:
-                sent_any = True
-    if sent_any:
-        logger.info(f"📤 Отчёты отправлены в Telegram пользователю {telegram_id}")
 
 
 def _is_valid_email(text: str) -> bool:
@@ -128,8 +70,6 @@ async def cmd_start(message: Message, state: FSMContext):
         user = await db_service.get_user_by_telegram_id(chat_id)
         if user:
             logger.info(f"👤 /start от {chat_id}: пользователь уже привязан (user_id={user.id})")
-            # Отправить готовые отчёты, если они есть (могли не дойти при генерации)
-            await _send_ready_reports(chat_id, user.id, user.is_premium_paid, user=user)
             await _send_welcome(message)
             return
 
@@ -186,15 +126,7 @@ async def process_email(message: Message, state: FSMContext):
         })
         logger.info(f"🔗 Telegram {chat_id} привязан к пользователю {user.id} (email: {text})")
         await state.clear()
-        await message.answer("✅ Аккаунт успешно привязан! Теперь вы будете получать отчёты в Telegram.")
-
-        # Отправить готовые отчёты, если они есть
-        user_updated = await db_service.get_user_by_id(user.id)
-        await _send_ready_reports(
-            chat_id, user.id,
-            user_updated.is_premium_paid if user_updated else False,
-            user=user_updated
-        )
+        await message.answer("✅ Аккаунт успешно привязан!")
 
         await _send_welcome(message)
 

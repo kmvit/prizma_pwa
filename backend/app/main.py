@@ -501,13 +501,6 @@ async def _generate_report_bg(user_id: int, report_type: str):
             # Обновляем user перед отправкой — он мог привязать Telegram во время генерации
             user = await db_service.get_user_by_id(user_id)
             is_premium = report_type == "premium"
-            if user and user.telegram_id:
-                from app.services.telegram_service import telegram_service
-                sent = await telegram_service.send_report_ready_notification(
-                    user.telegram_id, report_path, is_premium=is_premium
-                )
-                if sent:
-                    logger.info(f"Telegram-уведомление о готовности отчёта отправлено user_id={user_id}")
             if user and user.email:
                 from app.services.email_service import email_service
                 await email_service.send_report_ready_notification(
@@ -525,9 +518,6 @@ async def _generate_report_bg(user_id: int, report_type: str):
                 user_id, report_type, ReportGenerationStatus.FAILED, error="Ошибка генерации"
             )
             user = await db_service.get_user_by_id(user_id)
-            if user and user.telegram_id:
-                from app.services.telegram_service import telegram_service
-                await telegram_service.send_error_notification(user.telegram_id, "Ошибка генерации")
             if user and user.email:
                 from app.services.email_service import email_service
                 await email_service.send_error_notification(user.email, "Ошибка генерации")
@@ -537,9 +527,6 @@ async def _generate_report_bg(user_id: int, report_type: str):
             user_id, report_type, ReportGenerationStatus.FAILED, error=str(e)
         )
         user = await db_service.get_user_by_id(user_id)
-        if user and user.telegram_id:
-            from app.services.telegram_service import telegram_service
-            await telegram_service.send_error_notification(user.telegram_id, str(e))
         if user and user.email:
             from app.services.email_service import email_service
             await email_service.send_error_notification(user.email, str(e))
