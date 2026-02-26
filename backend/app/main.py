@@ -28,6 +28,7 @@ from app.auth.auth import (
 from app.config import (
     BASE_DIR,
     FRONTEND_URL,
+    VAPID_PUBLIC_KEY,
     TELEGRAM_BOT_TOKEN,
     FREE_QUESTIONS_LIMIT,
     PREMIUM_PRICE_ORIGINAL,
@@ -46,6 +47,7 @@ from app.models.api_models import (
     UserProfileUpdate,
     RegisterRequest,
     LoginRequest,
+    PushSubscribeRequest,
     QuestionResponse,
     ProgressResponse,
     UserStatusResponse,
@@ -67,19 +69,14 @@ app = FastAPI(
 )
 
 async def _background_timer_checker():
-    """Фоновая проверка таймеров и отправка уведомлений (логика 1:1 из perplexy_bot)"""
-    from sqlalchemy import select, and_
+    """Фоновая проверка таймеров и отправка уведомлений (TG + email)"""
+    from sqlalchemy import select
     from app.database.database import async_session
     while True:
         try:
             logger.info("🔄 Запуск фоновой проверки таймеров спецпредложений...")
             async with async_session() as session:
-                stmt = select(User).where(
-                    and_(
-                        User.special_offer_started_at.isnot(None),
-                        User.telegram_id.isnot(None),
-                    )
-                )
+                stmt = select(User).where(User.special_offer_started_at.isnot(None))
                 result = await session.execute(stmt)
                 users = result.scalars().all()
                 logger.info(f"📊 Найдено {len(users)} пользователей с активными таймерами")
@@ -87,9 +84,9 @@ async def _background_timer_checker():
                     try:
                         end = user.special_offer_started_at + timedelta(hours=12)
                         remaining_time = max(0, (end - datetime.utcnow()).total_seconds())
-                        await check_and_send_timer_notifications(user.telegram_id, int(remaining_time))
+                        await check_and_send_timer_notifications(user, int(remaining_time))
                     except Exception as e:
-                        logger.error(f"❌ Ошибка при обработке пользователя {user.telegram_id}: {e}")
+                        logger.error(f"❌ Ошибка при обработке пользователя {user.id}: {e}")
             logger.info("✅ Фоновая проверка таймеров завершена")
         except Exception as e:
             logger.error(f"❌ Критическая ошибка в фоновой задаче таймеров: {e}")
@@ -287,6 +284,36 @@ async def get_profile(user: User = Depends(get_current_user)):
     )
 
 
+# --- Web Push ---
+
+@app.get("/api/me/push-vapid-public")
+async def get_push_vapid_public(user: User = Depends(get_current_user)):
+    """Публичный VAPID ключ для подписки на push (нужен на frontend)"""
+    return {"vapid_public_key": VAPID_PUBLIC_KEY or ""}
+
+
+@app.post("/api/me/push-subscribe")
+async def push_subscribe(data: PushSubscribeRequest, user: User = Depends(get_current_user)):
+    """Сохранить push-подписку пользователя"""
+    keys = data.keys or {}
+    p256dh = keys.get("p256dh") or keys.get("p256DH")
+    auth = keys.get("auth")
+    if not p256dh or not auth:
+        raise HTTPException(status_code=400, detail="keys.p256dh и keys.auth обязательны")
+    await db_service.save_push_subscription(user.id, data.endpoint, p256dh, auth)
+    return {"status": "ok"}
+
+
+@app.delete("/api/me/push-subscribe")
+async def push_unsubscribe(body: dict = Body(default_factory=dict), user: User = Depends(get_current_user)):
+    """Удалить push-подписку по endpoint"""
+    endpoint = body.get("endpoint")
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="endpoint обязателен")
+    await db_service.delete_push_subscription(user.id, endpoint)
+    return {"status": "ok"}
+
+
 @app.post("/api/me/profile", response_model=UserProfileResponse)
 async def update_profile(data: UserProfileUpdate, user: User = Depends(get_current_user)):
     await db_service.update_user_profile(user.id, name=data.name, age=data.age, gender=data.gender)
@@ -473,13 +500,26 @@ async def _generate_report_bg(user_id: int, report_type: str):
                 await db_service.update_user(user_id, {"special_offer_started_at": datetime.utcnow()})
             # Обновляем user перед отправкой — он мог привязать Telegram во время генерации
             user = await db_service.get_user_by_id(user_id)
+            is_premium = report_type == "premium"
             if user and user.telegram_id:
                 from app.services.telegram_service import telegram_service
                 sent = await telegram_service.send_report_ready_notification(
-                    user.telegram_id, report_path, is_premium=(report_type == "premium")
+                    user.telegram_id, report_path, is_premium=is_premium
                 )
                 if sent:
                     logger.info(f"Telegram-уведомление о готовности отчёта отправлено user_id={user_id}")
+            if user and user.email:
+                from app.services.email_service import email_service
+                await email_service.send_report_ready_notification(
+                    user.email, report_path, is_premium, user.telegram_id, user.id
+                )
+                if not is_premium:
+                    await email_service.send_premium_offer(user.email)
+            if user and not is_premium:
+                from app.services.push_service import push_service
+                subs = await db_service.get_push_subscriptions(user.id)
+                for sub in subs:
+                    await push_service.send_premium_offer(sub.endpoint, sub.p256dh, sub.auth)
         else:
             await db_service.update_report_generation_status(
                 user_id, report_type, ReportGenerationStatus.FAILED, error="Ошибка генерации"
@@ -488,6 +528,9 @@ async def _generate_report_bg(user_id: int, report_type: str):
             if user and user.telegram_id:
                 from app.services.telegram_service import telegram_service
                 await telegram_service.send_error_notification(user.telegram_id, "Ошибка генерации")
+            if user and user.email:
+                from app.services.email_service import email_service
+                await email_service.send_error_notification(user.email, "Ошибка генерации")
     except Exception as e:
         logger.error(f"Report generation error: {e}")
         await db_service.update_report_generation_status(
@@ -497,6 +540,9 @@ async def _generate_report_bg(user_id: int, report_type: str):
         if user and user.telegram_id:
             from app.services.telegram_service import telegram_service
             await telegram_service.send_error_notification(user.telegram_id, str(e))
+        if user and user.email:
+            from app.services.email_service import email_service
+            await email_service.send_error_notification(user.email, str(e))
 
 
 async def _generate_simple_report(user_id: int, report_type: str) -> str:
@@ -644,33 +690,55 @@ async def reset_test(user: User = Depends(get_current_user)):
 
 # --- Special offer timer ---
 
-async def check_and_send_timer_notifications(telegram_id: int, remaining_seconds: int):
-    """Проверить и отправить уведомления по таймеру спецпредложения (логика 1:1 из perplexy_bot)"""
+async def check_and_send_timer_notifications(user: User, remaining_seconds: int):
+    """Проверить и отправить уведомления по таймеру спецпредложения (TG + email)"""
     try:
-        user = await db_service.get_user_by_telegram_id(telegram_id)
         if not user:
             return
         hours = int(remaining_seconds // 3600)
         minutes = int((remaining_seconds % 3600) // 60)
-        logger.info(f"⏱️ Пользователь {telegram_id}: осталось {hours:02d}:{minutes:02d}:00, флаги: 6ч={getattr(user, 'notification_6_hours_sent', False)}, 1ч={getattr(user, 'notification_1_hour_sent', False)}, 10м={getattr(user, 'notification_10_minutes_sent', False)}")
+        logger.info(f"⏱️ Пользователь {user.id}: осталось {hours:02d}:{minutes:02d}:00, флаги: 6ч={getattr(user, 'notification_6_hours_sent', False)}, 1ч={getattr(user, 'notification_1_hour_sent', False)}, 10м={getattr(user, 'notification_10_minutes_sent', False)}")
         from app.services.telegram_service import telegram_service
+        from app.services.email_service import email_service
+
+        from app.services.push_service import push_service
+        push_subs = await db_service.get_push_subscriptions(user.id)
+
+        def _push_any_sent(results: list) -> bool:
+            return any(results) if results else False
+
         if 6 <= hours < 7 and not getattr(user, "notification_6_hours_sent", False):
-            logger.info(f"⏰ Отправляем уведомление за 6 часов до конца акции пользователю {telegram_id}")
-            success = await telegram_service.send_special_offer_6_hours_left(telegram_id)
-            if success:
+            logger.info(f"⏰ Отправляем уведомление за 6 часов до конца акции пользователю {user.id}")
+            tg_ok = await telegram_service.send_special_offer_6_hours_left(user.telegram_id) if user.telegram_id else False
+            email_ok = await email_service.send_special_offer_6_hours_left(user.email) if user.email else False
+            push_ok = _push_any_sent([
+                await push_service.send_special_offer_6_hours_left(s.endpoint, s.p256dh, s.auth)
+                for s in push_subs
+            ])
+            if tg_ok or email_ok or push_ok:
                 await db_service.update_user(user.id, {"notification_6_hours_sent": True})
         elif 1 <= hours < 2 and not getattr(user, "notification_1_hour_sent", False):
-            logger.info(f"⏰ Отправляем уведомление за 1 час до конца акции пользователю {telegram_id}")
-            success = await telegram_service.send_special_offer_1_hour_left(telegram_id)
-            if success:
+            logger.info(f"⏰ Отправляем уведомление за 1 час до конца акции пользователю {user.id}")
+            tg_ok = await telegram_service.send_special_offer_1_hour_left(user.telegram_id) if user.telegram_id else False
+            email_ok = await email_service.send_special_offer_1_hour_left(user.email) if user.email else False
+            push_ok = _push_any_sent([
+                await push_service.send_special_offer_1_hour_left(s.endpoint, s.p256dh, s.auth)
+                for s in push_subs
+            ])
+            if tg_ok or email_ok or push_ok:
                 await db_service.update_user(user.id, {"notification_1_hour_sent": True})
         elif hours == 0 and 10 <= minutes < 20 and not getattr(user, "notification_10_minutes_sent", False):
-            logger.info(f"⏰ Отправляем уведомление за 10 минут до конца акции пользователю {telegram_id}")
-            success = await telegram_service.send_special_offer_10_minutes_left(telegram_id)
-            if success:
+            logger.info(f"⏰ Отправляем уведомление за 10 минут до конца акции пользователю {user.id}")
+            tg_ok = await telegram_service.send_special_offer_10_minutes_left(user.telegram_id) if user.telegram_id else False
+            email_ok = await email_service.send_special_offer_10_minutes_left(user.email) if user.email else False
+            push_ok = _push_any_sent([
+                await push_service.send_special_offer_10_minutes_left(s.endpoint, s.p256dh, s.auth)
+                for s in push_subs
+            ])
+            if tg_ok or email_ok or push_ok:
                 await db_service.update_user(user.id, {"notification_10_minutes_sent": True})
     except Exception as e:
-        logger.error(f"❌ Ошибка при проверке таймера для пользователя {telegram_id}: {e}")
+        logger.error(f"❌ Ошибка при проверке таймера для пользователя {user.id if user else '?'}: {e}")
 
 
 def _get_special_offer_remaining(user: User) -> tuple[bool, int]:
@@ -687,8 +755,8 @@ async def get_special_offer_timer(user: User = Depends(get_current_user)):
     if not user.special_offer_started_at:
         return {"active": False, "remaining_seconds": 0}
     active, remaining = _get_special_offer_remaining(user)
-    if user.telegram_id and remaining > 0:
-        asyncio.create_task(check_and_send_timer_notifications(user.telegram_id, remaining))
+    if remaining > 0:
+        asyncio.create_task(check_and_send_timer_notifications(user, remaining))
     return {
         "active": active,
         "remaining_seconds": remaining,
@@ -703,6 +771,35 @@ async def reset_special_offer_timer(user: User = Depends(get_current_user)):
     return {"status": "ok"}
 
 
+# --- Web Push ---
+
+@app.get("/api/me/push-vapid-public")
+async def get_push_vapid_public():
+    """Публичный VAPID ключ для подписки на push (нужен frontend)"""
+    if not VAPID_PUBLIC_KEY:
+        raise HTTPException(status_code=503, detail="Web Push не настроен")
+    return {"vapid_public_key": VAPID_PUBLIC_KEY}
+
+
+@app.post("/api/me/push-subscribe")
+async def push_subscribe(data: PushSubscribeRequest, user: User = Depends(get_current_user)):
+    """Сохранить push-подписку пользователя"""
+    keys = data.keys or {}
+    p256dh = keys.get("p256dh", "")
+    auth = keys.get("auth", "")
+    if not p256dh or not auth:
+        raise HTTPException(status_code=400, detail="Нужны keys.p256dh и keys.auth")
+    await db_service.save_push_subscription(user.id, data.endpoint, p256dh, auth)
+    return {"status": "ok"}
+
+
+@app.delete("/api/me/push-subscribe")
+async def push_unsubscribe(endpoint: str, user: User = Depends(get_current_user)):
+    """Удалить push-подписку"""
+    await db_service.delete_push_subscription(user.id, endpoint)
+    return {"status": "ok"}
+
+
 # --- Telegram: ручная отправка уведомлений (для админки/отладки) ---
 
 @app.post("/api/user/{telegram_id}/send-special-offer-notification", summary="Отправить уведомление о спецпредложении")
@@ -712,13 +809,21 @@ async def send_special_offer_notification(telegram_id: int, body: dict = Body(de
         notification_type = body.get("notification_type", "")
         logger.info(f"📱 Отправка уведомления о спецпредложении типа '{notification_type}' для пользователя {telegram_id}")
         from app.services.telegram_service import telegram_service
+        from app.services.email_service import email_service
+        user = await db_service.get_user_by_telegram_id(telegram_id)
         success = False
         if notification_type == "6_hours_left":
             success = await telegram_service.send_special_offer_6_hours_left(telegram_id)
+            if user and user.email:
+                await email_service.send_special_offer_6_hours_left(user.email)
         elif notification_type == "1_hour_left":
             success = await telegram_service.send_special_offer_1_hour_left(telegram_id)
+            if user and user.email:
+                await email_service.send_special_offer_1_hour_left(user.email)
         elif notification_type == "10_minutes_left":
             success = await telegram_service.send_special_offer_10_minutes_left(telegram_id)
+            if user and user.email:
+                await email_service.send_special_offer_10_minutes_left(user.email)
         else:
             logger.error(f"❌ Неизвестный тип уведомления: {notification_type}")
             return {"status": "error", "message": f"Неизвестный тип уведомления: {notification_type}"}
@@ -738,6 +843,8 @@ async def send_all_special_offer_notifications(telegram_id: int):
     """Отправить все три типа уведомлений (для тестирования)"""
     try:
         from app.services.telegram_service import telegram_service
+        from app.services.email_service import email_service
+        user = await db_service.get_user_by_telegram_id(telegram_id)
         notification_types = [
             ("6_hours_left", "За 6 часов"),
             ("1_hour_left", "За 1 час"),
@@ -748,10 +855,16 @@ async def send_all_special_offer_notifications(telegram_id: int):
             try:
                 if notification_type == "6_hours_left":
                     success = await telegram_service.send_special_offer_6_hours_left(telegram_id)
+                    if user and user.email:
+                        await email_service.send_special_offer_6_hours_left(user.email)
                 elif notification_type == "1_hour_left":
                     success = await telegram_service.send_special_offer_1_hour_left(telegram_id)
+                    if user and user.email:
+                        await email_service.send_special_offer_1_hour_left(user.email)
                 elif notification_type == "10_minutes_left":
                     success = await telegram_service.send_special_offer_10_minutes_left(telegram_id)
+                    if user and user.email:
+                        await email_service.send_special_offer_10_minutes_left(user.email)
                 else:
                     success = False
                 results[notification_type] = {"success": success, "description": description}

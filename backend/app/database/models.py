@@ -83,6 +83,7 @@ class User(Base):
     # Связи
     answers = relationship("Answer", back_populates="user")
     payments = relationship("Payment", back_populates="user")
+    push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
     current_question = relationship("Question", foreign_keys=[current_question_id])
 
 
@@ -134,6 +135,20 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     paid_at = Column(DateTime, nullable=True)
     user = relationship("User", back_populates="payments")
+
+
+class PushSubscription(Base):
+    """Web Push подписка пользователя (для уведомлений в PWA)"""
+
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    endpoint = Column(String(1000), nullable=False)
+    p256dh = Column(Text, nullable=False)
+    auth = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", back_populates="push_subscriptions")
 
 
 class Report(Base):

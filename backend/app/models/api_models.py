@@ -68,3 +68,9 @@ class UserProfileResponse(BaseModel):
     status: str
     user: dict
     payment_status: Optional[str] = None
+
+
+class PushSubscribeRequest(BaseModel):
+    """Данные push-подписки от navigator.serviceWorker.pushManager.subscribe()"""
+    endpoint: str = Field(..., min_length=10)
+    keys: dict = Field(..., description="keys.p256dh, keys.auth из subscription.toJSON().keys")

@@ -23,6 +23,18 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 # Если не задан — используется FRONTEND_URL (когда /api проксируется на backend).
 API_BASE_URL = os.getenv("API_BASE_URL", FRONTEND_URL)
 
+# Web Push (VAPID): генерировать ключи: python -m py_vapid --gen
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()  # PEM-строка или путь к .pem
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "").strip()   # для frontend (base64)
+
+# SMTP (email-уведомления)
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER or "noreply@prizma.local")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+
 # Perplexity API
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-pro")

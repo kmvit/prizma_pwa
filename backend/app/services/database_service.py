@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import glob
 from pathlib import Path
 
-from app.database.models import User, Question, Answer, Payment, Report, QuestionType, PaymentStatus, ReportGenerationStatus
+from app.database.models import User, Question, Answer, Payment, Report, PushSubscription, QuestionType, PaymentStatus, ReportGenerationStatus
 from app.database.database import async_session
 from app.config import FREE_QUESTIONS_LIMIT, PREMIUM_QUESTIONS_COUNT
 from loguru import logger
@@ -389,6 +389,48 @@ class DatabaseService:
             ).order_by(Question.order_number)
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+    async def save_push_subscription(self, user_id: int, endpoint: str, p256dh: str, auth: str) -> PushSubscription:
+        """Сохранить или обновить push-подписку (по endpoint — одно устройство может переподписываться)"""
+        async with async_session() as session:
+            stmt = select(PushSubscription).where(
+                PushSubscription.user_id == user_id,
+                PushSubscription.endpoint == endpoint,
+            )
+            result = await session.execute(stmt)
+            sub = result.scalar_one_or_none()
+            if sub:
+                sub.p256dh = p256dh
+                sub.auth = auth
+            else:
+                sub = PushSubscription(
+                    user_id=user_id,
+                    endpoint=endpoint,
+                    p256dh=p256dh,
+                    auth=auth,
+                )
+                session.add(sub)
+            await session.commit()
+            await session.refresh(sub)
+            return sub
+
+    async def get_push_subscriptions(self, user_id: int) -> List[PushSubscription]:
+        """Получить все push-подписки пользователя"""
+        async with async_session() as session:
+            stmt = select(PushSubscription).where(PushSubscription.user_id == user_id)
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def delete_push_subscription(self, user_id: int, endpoint: str) -> bool:
+        """Удалить push-подписку по endpoint"""
+        async with async_session() as session:
+            stmt = delete(PushSubscription).where(
+                PushSubscription.user_id == user_id,
+                PushSubscription.endpoint == endpoint,
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount > 0
 
 
 db_service = DatabaseService()
