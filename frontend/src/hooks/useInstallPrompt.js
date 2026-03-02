@@ -84,5 +84,5 @@ export function useInstallPrompt() {
     setDeferredPrompt(null)
   }
 
-  return { isInstallable, isInstalled, triggerInstall, dismiss }
+  return { isInstallable, isInstalled, isSafari, triggerInstall, dismiss }
 }
