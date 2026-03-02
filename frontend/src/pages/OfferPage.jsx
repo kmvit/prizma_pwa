@@ -183,7 +183,7 @@ export default function OfferPage() {
               <div className="promo-description">Можно оплатить сразу – пройти позже</div>
               {pushStatus !== 'granted' && pushStatus !== 'unsupported' && pushStatus !== 'denied' && (
                 <div className="push-subscribe-block" style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(36,177,253,0.1)', borderRadius: 8, textAlign: 'center' }}>
-                  <p style={{ margin: '0 0 8px', fontSize: 14, color: '#fff' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 14, color: '#2B2D68' }}>
                     Получать напоминания об акциях в браузере?
                   </p>
                   <button

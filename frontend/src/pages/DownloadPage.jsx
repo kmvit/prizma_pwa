@@ -128,7 +128,7 @@ export default function DownloadPage() {
       )}
       {pushStatus !== 'granted' && pushStatus !== 'unsupported' && pushStatus !== 'denied' && (
         <div style={{ margin: '24px 20px', padding: 16, background: 'rgba(36,177,253,0.1)', borderRadius: 8, textAlign: 'center' }}>
-          <p style={{ margin: '0 0 10px', fontSize: 14, color: '#fff' }}>Получать напоминания об акциях?</p>
+          <p style={{ margin: '0 0 10px', fontSize: 14, color: '#2B2D68' }}>Получать напоминания об акциях?</p>
           <button
             type="button"
             style={{ padding: '8px 20px', background: 'linear-gradient(90deg, #24B1FD 0%, #9B58FB 100%)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
