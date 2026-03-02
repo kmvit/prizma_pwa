@@ -41,6 +41,9 @@ Vite проксирует `/api` на backend (8080).
 - `FRONTEND_URL` — URL фронта (для редиректов оплаты и ссылок в Telegram)
 - `API_BASE_URL` — URL API для ссылок на скачивание в уведомлениях (если не задан — используется `FRONTEND_URL`)
 - `TELEGRAM_BOT_TOKEN` — для авторизации и уведомлений в бота
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` — для отправки email-уведомлений (аналогично Telegram)
+- `SMTP_FROM_EMAIL` — отправитель писем (по умолчанию = SMTP_USER)
+- `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY` — для Web Push уведомлений (сгенерировать: `python -m py_vapid --gen`)
 - `DATABASE_URL` — SQLite по умолчанию
 - `PERPLEXITY_API_KEY`, `PERPLEXITY_ENABLED` — для ИИ-анализа
 - `ROBOKASSA_*` — для приёма платежей
@@ -56,9 +59,9 @@ Vite проксирует `/api` на backend (8080).
 3. **Frontend** (.env): `VITE_TELEGRAM_BOT_USERNAME=имя_бота` (без @, например `PrizmaBot`)
 4. Для локальной разработки нужен HTTPS (например, [ngrok](https://ngrok.com/))
 
-### Telegram-уведомления в бота
+### Telegram- и Email-уведомления
 
-Пользователи с `telegram_id` в БД получают уведомления в того же бота (по `TELEGRAM_BOT_TOKEN`):
+Пользователи с `telegram_id` получают уведомления в бота (по `TELEGRAM_BOT_TOKEN`). Пользователи с реальным email получают те же уведомления на почту (через SMTP):
 
 - **Отчёт готов** — после генерации бесплатного или премиум-отчёта (PDF или ссылка на скачивание)
 - **Предложение премиума** — после бесплатного отчёта (с кнопкой «Хочу получить по акции!»)
@@ -73,3 +76,11 @@ Vite проксирует `/api` на backend (8080).
 - `POST /api/user/{telegram_id}/send-all-special-offer-notifications` — отправить все три уведомления
 
 **Скачивание из уведомлений:** В Telegram уходит ссылка на страницу PWA `/download/report/{telegram_id}`. Страница делает fetch к API и программно запускает скачивание. API-эндпоинты: `GET /api/download/report/{telegram_id}` и `GET /api/download/premium-report/{telegram_id}`.
+
+### Web Push уведомления
+
+Пользователи могут подписаться на уведомления в PWA (на странице спецпредложения). Тексты сокращены под пуш:
+- Предложение премиума после бесплатного отчёта
+- За 6 часов, 1 час и 10 минут до конца скидки
+
+Настройка: `python -m py_vapid --gen` → сохранить ключи в `.env` как `VAPID_PRIVATE_KEY` и `VAPID_PUBLIC_KEY`.

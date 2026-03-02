@@ -106,4 +106,20 @@ export const api = {
 
   resetTest: () =>
     fetchApi('/me/reset-test', { method: 'POST' }),
+
+  getPushVapidPublic: () => fetchApi('/me/push-vapid-public'),
+
+  pushSubscribe: (subscription) =>
+    fetchApi('/me/push-subscribe', {
+      method: 'POST',
+      body: JSON.stringify(subscription),
+    }),
+
+  pushUnsubscribe: (endpoint) =>
+    fetchApi('/me/push-subscribe', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    }),
+
+  sendTestPush: () => fetchApi('/me/send-test-push', { method: 'POST' }),
 }
