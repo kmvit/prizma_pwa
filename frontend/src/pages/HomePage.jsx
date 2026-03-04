@@ -279,10 +279,6 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-      <div style={{ textAlign: 'center', padding: '20px', fontSize: '14px' }}>
-        <a href="/api/files/policy" target="_blank" rel="noopener noreferrer" style={{ marginRight: '16px' }}>Конфиденциальность</a>
-        <a href="/api/files/offerta" target="_blank" rel="noopener noreferrer">Оферта</a>
-      </div>
     </main>
   )
 }

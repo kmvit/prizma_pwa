@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import InstallBanner from './components/InstallBanner'
+import Footer from './components/Footer'
 import HomePage from './pages/HomePage'
 import RegisterPage from './pages/RegisterPage'
 import LoginPage from './pages/LoginPage'
@@ -102,6 +103,7 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <InstallBanner />
+      <Footer />
     </Fragment>
   )
 }
