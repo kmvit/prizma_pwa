@@ -13,6 +13,7 @@ export default function QuestionPage() {
   const [data, setData] = useState(null)
   const [answer, setAnswer] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(true)
 
   useBodyClass('bodyQuestion')
 
@@ -68,16 +69,35 @@ export default function QuestionPage() {
 
   if (redirecting || loading || !data) {
     return (
-      <main className="main question">
-        <p className="question-title">Загрузка...</p>
-      </main>
+      <>
+        {showModal && (
+          <div className="modal-overlay show" onClick={() => setShowModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="modal-close" onClick={() => setShowModal(false)} aria-label="Закрыть">×</button>
+              <img src="/images/modal.svg" alt="" className="modal-image" />
+            </div>
+          </div>
+        )}
+        <main className="main question">
+          <p className="question-title">Загрузка...</p>
+        </main>
+      </>
     )
   }
 
   const { question, progress } = data
 
   return (
-    <main className="main question">
+    <>
+      {showModal && (
+        <div className="modal-overlay show" onClick={() => setShowModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close" onClick={() => setShowModal(false)} aria-label="Закрыть">×</button>
+            <img src="/images/modal.svg" alt="" className="modal-image" />
+          </div>
+        </div>
+      )}
+      <main className="main question">
       <div className="question-header">
         <div className="question-prev-button-container">
           <h1 className="question-num linear-text">Вопрос <span className="current-question">{progress?.current}</span> из <span className="question-count">{progress?.total}</span></h1>
@@ -97,5 +117,6 @@ export default function QuestionPage() {
         </form>
       </div>
     </main>
+    </>
   )
 }
