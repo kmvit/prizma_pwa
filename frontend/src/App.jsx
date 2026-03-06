@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import InstallBanner from './components/InstallBanner'
@@ -25,9 +25,17 @@ function ProtectedRoute({ children }) {
   return children
 }
 
+const YANDEX_METRIKA_ID = 107161856
+
 export default function App() {
   const { pathname } = useLocation()
   const showFooter = pathname === '/'
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ym) {
+      window.ym(YANDEX_METRIKA_ID, 'hit', pathname)
+    }
+  }, [pathname])
 
   return (
     <Fragment>
