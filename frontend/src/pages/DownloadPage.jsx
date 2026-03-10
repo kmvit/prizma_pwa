@@ -18,24 +18,6 @@ export default function DownloadPage() {
     api.getReportsStatus().then(setStatus)
   }, [])
 
-  const [downloadError, setDownloadError] = useState(null)
-  const handleDownloadFree = async () => {
-    setDownloadError(null)
-    try {
-      await api.downloadReport('free')
-    } catch (e) {
-      setDownloadError(e?.message || 'Не удалось скачать')
-    }
-  }
-  const handleDownloadPremium = async () => {
-    setDownloadError(null)
-    try {
-      await api.downloadReport('premium')
-    } catch (e) {
-      setDownloadError(e?.message || 'Не удалось скачать')
-    }
-  }
-
   if (redirecting || !status) {
     return (
       <main className="main download">
@@ -111,21 +93,18 @@ export default function DownloadPage() {
               <img src="/images/file.png" alt="" />
             </div>
             {freeReady && (
-              <button type="button" className="decoding-download-button" onClick={handleDownloadFree}>
+              <a href="/api/me/download/report" download className="decoding-download-button">
                 <span className="download-file-text"><span>Скачать бесплатный отчёт</span></span>
-              </button>
+              </a>
             )}
             {premiumReady && (
-              <button type="button" className="decoding-download-button" onClick={handleDownloadPremium}>
+              <a href="/api/me/download/premium-report" download className="decoding-download-button">
                 <span className="download-file-text"><span>Скачать премиум отчёт</span></span>
-              </button>
+              </a>
             )}
           </div>
         </div>
       </div>
-      {downloadError && (
-        <p style={{ textAlign: 'center', marginTop: 24, color: '#c00' }}>{downloadError}</p>
-      )}
       {pushStatus !== 'granted' && pushStatus !== 'unsupported' && pushStatus !== 'denied' && (
         <div style={{ margin: '24px 20px', padding: 16, background: 'rgba(36,177,253,0.1)', borderRadius: 8, textAlign: 'center' }}>
           <p style={{ margin: '0 0 10px', fontSize: 14, color: '#2B2D68' }}>Получать напоминания об акциях?</p>

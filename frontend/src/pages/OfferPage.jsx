@@ -81,8 +81,6 @@ export default function OfferPage() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
   }
 
-  const handleDownload = () => api.downloadReport('free')
-
   const handleBuy = async () => {
     try {
       const { payment_url } = await api.startPremiumPayment()
@@ -117,9 +115,9 @@ export default function OfferPage() {
             <img src="/images/result-ico-pdf.webp" alt="" className="quiz-result-img" onError={(e) => { e.target.style.display = 'none' }} />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               {reportStatus === 'ready' && (
-                <button type="button" className="link-download-result" onClick={handleDownload}>
+                <a href="/api/me/download/report" download className="link-download-result">
                   <span className="download-file-text"><span>Скачать</span></span>
-                </button>
+                </a>
               )}
             </div>
             {reportStatus === 'generating' ? (

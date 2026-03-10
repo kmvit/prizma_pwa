@@ -85,8 +85,6 @@ export default function LoadingPage() {
     return () => clearInterval(intervalRef.current)
   }, [status])
 
-  const handleDownload = () => api.downloadReport('free')
-
   return (
     <main className="main loading">
       <div className="loading-header">
@@ -108,7 +106,7 @@ export default function LoadingPage() {
       </div>
       <div className="loading-time">
         <div>{statusText}</div>
-        {status === 'ready' && <button type="button" className="button" onClick={handleDownload}>Скачать отчет</button>}
+        {status === 'ready' && <a href="/api/me/download/report" download className="button">Скачать отчет</a>}
         {status === 'generating' && <div className="loading-hint">Это может занять до 5-10 минут</div>}
       </div>
       <div className="loading-links">
