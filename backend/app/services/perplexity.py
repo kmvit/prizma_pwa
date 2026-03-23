@@ -227,45 +227,26 @@ class PerplexityAIService:
 Используйте загруженные инструкции раздела."""
         return prompt, expected_pages
 
-    def _estimate_token_count(self, text: str) -> int:
-        return len(text) // 3
-
-    def _estimate_conversation_tokens(self, conversation: List[Dict]) -> int:
-        total_chars = sum(len(m.get("content", "")) for m in conversation)
-        return total_chars // 3
-
-    def _trim_conversation_context(self, conversation: List[Dict], max_tokens: int = 30000) -> List[Dict]:
-        if self._estimate_conversation_tokens(conversation) <= max_tokens or len(conversation) <= 3:
-            return conversation
-        preserved = conversation[:3]
-        remaining = conversation[3:]
-        pairs = []
-        for i in range(0, len(remaining), 2):
-            if i + 1 < len(remaining):
-                pair = [remaining[i], remaining[i + 1]]
-                pair_tokens = self._estimate_token_count(pair[0].get("content", "") + pair[1].get("content", ""))
-                pairs.append((pair, pair_tokens))
-        kept, current_size = [], self._estimate_conversation_tokens(preserved)
-        for pair, pair_tokens in reversed(pairs):
-            if current_size + pair_tokens <= max_tokens:
-                kept.insert(0, pair)
-                current_size += pair_tokens
-            else:
-                break
-        result = preserved[:]
-        for pair in kept:
-            result.extend(pair)
-        logger.info(f"Урезали контекст до {len(kept)} пар")
-        return result
+    def _estimate_tokens(self, conversation: List[Dict]) -> int:
+        """Оценка токенов: для кириллицы ~1 символ ≈ 1.5-2 токена в BPE"""
+        total_bytes = sum(len(m.get("content", "").encode("utf-8")) for m in conversation)
+        return total_bytes // 3
 
     async def analyze_premium_responses(self, user: User, questions: List[Question], answers: List[Answer]) -> Dict:
-        """Платный анализ (50 вопросов) — ПОСТРАНИЧНАЯ ГЕНЕРАЦИЯ 63 страниц."""
+        """Платный анализ (50 вопросов) — ПОСТРАНИЧНАЯ ГЕНЕРАЦИЯ 63 страниц.
+
+        Архитектура контекста:
+        - base_messages (system + Q&A + initial_ack) сохраняется для КАЖДОГО раздела
+        - Между разделами conversation сбрасывается до base_messages
+        - Внутри раздела страницы накапливаются, чтобы AI не повторялся
+        - Модель 240k токенов — обрезка контекста не нужна
+        """
         user_data = self._prepare_user_data(user, questions, answers)
         uid = _user_id(user)
         logger.info(f"Запускаем постраничный премиум AI анализ для user_id={uid} (63 страницы)")
-        conversation = [
-            {"role": "system", "content": f"""{PremiumPromptsNew.get_base_prompt()}
-ВАЖНО: Это базовые инструкции. Дополнительные инструкции для конкретных разделов будут предоставлены по мере необходимости."""},
+
+        base_messages = [
+            {"role": "system", "content": PremiumPromptsNew.get_base_prompt()},
             {"role": "user", "content": f"""Вот данные для ПЛАТНОГО психологического анализа (50 вопросов):
 
 {user_data}
@@ -278,9 +259,11 @@ class PerplexityAIService:
 - Если в ответах нет подходящей цитаты - НЕ создавайте пример
 - Обращайтесь к человеку через "ВЫ", "ВАШИ", "ВАМ" - НЕ используйте слова "пользователь" или "клиент"."""}
         ]
-        initial_response = await self._make_api_request(conversation, is_premium=True)
-        conversation.append({"role": "assistant", "content": initial_response["content"]})
-        logger.info(f"Первичный анализ получен: {len(initial_response['content'])} символов")
+        initial_response = await self._make_api_request(base_messages, is_premium=True)
+        base_messages.append({"role": "assistant", "content": initial_response["content"]})
+
+        base_tokens = self._estimate_tokens(base_messages)
+        logger.info(f"Первичный анализ получен: {len(initial_response['content'])} символов, base ≈ {base_tokens} токенов")
 
         page_structure = [
             ("premium_analysis", "Психологический портрет", 10),
@@ -298,17 +281,17 @@ class PerplexityAIService:
         page_counter = 1
 
         for section_key, section_name, page_count in page_structure:
-            logger.info(f"Раздел: {section_name} ({page_count} страниц)")
+            conversation = list(base_messages)
+
             section_prompt = self._get_section_prompt(section_key)
             conversation.append({"role": "user", "content": f'Переходим к разделу "{section_name}". Инструкции:\n{section_prompt}\nИспользуйте эти инструкции для всех страниц данного раздела.'})
             section_response = await self._make_api_request(conversation, is_premium=True)
             conversation.append({"role": "assistant", "content": section_response["content"]})
 
-            for page_num in range(1, page_count + 1):
-                current_tokens = self._estimate_conversation_tokens(conversation)
-                if current_tokens > 50000:
-                    conversation = self._trim_conversation_context(conversation, max_tokens=30000)
+            section_tokens = self._estimate_tokens(conversation)
+            logger.info(f"Раздел: {section_name} ({page_count} страниц), контекст ≈ {section_tokens} токенов")
 
+            for page_num in range(1, page_count + 1):
                 page_prompt, _ = self._get_premium_page_prompt(section_key, page_num, page_count)
                 conversation.append({"role": "user", "content": page_prompt})
                 page_response = await self._make_api_request(conversation, is_premium=True)
@@ -324,11 +307,14 @@ class PerplexityAIService:
                 page_counter += 1
                 await asyncio.sleep(1)
 
+            final_tokens = self._estimate_tokens(conversation)
+            logger.info(f"Раздел {section_name} завершён, финальный контекст ≈ {final_tokens} токенов")
+
             section_pages = {k: v["content"] for k, v in all_individual_pages.items() if v["section_key"] == section_key}
             all_pages[section_key] = "\n\n".join(section_pages.values())
 
         total_length = sum(len(c) for c in all_pages.values())
-        logger.info(f"Премиум-анализ завершён: {total_length} символов, 63 страницы")
+        logger.info(f"Премиум-анализ завершён: {total_length} символов, {page_counter - 1} страниц")
 
         return {
             "success": True,
@@ -343,7 +329,7 @@ class PerplexityAIService:
             "premium_appendix": all_pages.get("premium_appendix", ""),
             "individual_pages": all_individual_pages,
             "initial_analysis": initial_response["content"],
-            "usage": {"pages_generated": 63},
+            "usage": {"pages_generated": page_counter - 1},
             "timestamp": datetime.utcnow().isoformat()
         }
 
