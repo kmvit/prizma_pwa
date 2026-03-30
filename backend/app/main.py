@@ -6,6 +6,7 @@ from datetime import timedelta
 import decimal
 import glob
 import logging
+import secrets
 import time
 import uuid
 from datetime import datetime
@@ -853,6 +854,30 @@ async def send_all_special_offer_notifications(telegram_id: int):
 
 # --- Payment ---
 
+# Robokassa ошибка 40: повторный платёж с тем же InvId невозможен (номера помнятся у мерчанта навсегда).
+# Не используем автоинкремент payment.id как InvId — только отдельный уникальный номер счёта.
+_RK_INVID_MIN = 1_000_000_000
+_RK_INVID_MAX = 2_147_483_647
+
+
+def _new_robokassa_invoice_id() -> str:
+    return str(secrets.randbelow(_RK_INVID_MAX - _RK_INVID_MIN + 1) + _RK_INVID_MIN)
+
+
+async def _payment_for_robokassa_inv(inv_id_raw: Optional[str]):
+    s = (inv_id_raw or "").strip()
+    if not s:
+        return None
+    payment = await db_service.get_payment_by_invoice_id(s)
+    if payment:
+        return payment
+    try:
+        legacy_id = int(s)
+    except (ValueError, TypeError):
+        return None
+    return await db_service.get_payment_by_id(legacy_id)
+
+
 @app.post("/api/me/start-premium-payment")
 async def start_premium_payment(user: User = Depends(get_current_user)):
     timer_info = await get_special_offer_timer(user)
@@ -863,16 +888,24 @@ async def start_premium_payment(user: User = Depends(get_current_user)):
     amount_kopecks = int(amount_decimal * 100)
     is_test_int = 1 if ROBOKASSA_TEST else 0
 
-    # 1. Создаём платёж (как в perplexy_bot)
-    payment = await db_service.create_payment(
-        user.id,
-        amount_kopecks,
-        "RUB",
-        f"Премиум отчет для пользователя {user.id}",
-        str(int(time.time() * 1_000_000)),  # временный invoice_id
-        PaymentStatus.PENDING,
-    )
-    inv_id = payment.id
+    payment = None
+    for _ in range(16):
+        try:
+            payment = await db_service.create_payment(
+                user.id,
+                amount_kopecks,
+                "RUB",
+                f"Премиум отчет для пользователя {user.id}",
+                _new_robokassa_invoice_id(),
+                PaymentStatus.PENDING,
+            )
+            break
+        except IntegrityError:
+            continue
+    if payment is None:
+        raise HTTPException(status_code=500, detail="Не удалось создать платёж, попробуйте ещё раз")
+
+    inv_id = int(payment.invoice_id)
 
     robokassa = RobokassaService(
         ROBOKASSA_LOGIN or "",
@@ -894,7 +927,7 @@ async def start_premium_payment(user: User = Depends(get_current_user)):
         success_url=success_url,
         fail_url=fail_url,
     )
-    return {"payment_url": link, "invoice_id": str(inv_id)}
+    return {"payment_url": link, "invoice_id": payment.invoice_id}
 
 
 @app.get("/api/payment/success")
@@ -909,11 +942,7 @@ async def payment_fail():
 
 @app.get("/api/robokassa/result")
 async def robokassa_result(OutSum: str, InvId: str, SignatureValue: str):
-    try:
-        pid = int(InvId)
-    except (ValueError, TypeError):
-        return "bad sign"
-    payment = await db_service.get_payment_by_id(pid)
+    payment = await _payment_for_robokassa_inv(InvId)
     if not payment:
         return "bad sign"
     robokassa = RobokassaService(
@@ -933,11 +962,7 @@ async def robokassa_result(OutSum: str, InvId: str, SignatureValue: str):
 
 @app.get("/api/robokassa/success")
 async def robokassa_success(OutSum: str, InvId: str, SignatureValue: str):
-    try:
-        pid = int(InvId)
-    except (ValueError, TypeError):
-        return RedirectResponse(url=f"{FRONTEND_URL}/payment/fail")
-    payment = await db_service.get_payment_by_id(pid)
+    payment = await _payment_for_robokassa_inv(InvId)
     if not payment:
         return RedirectResponse(url=f"{FRONTEND_URL}/payment/fail")
     robokassa = RobokassaService(
