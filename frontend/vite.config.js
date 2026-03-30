@@ -10,7 +10,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'images/prizma-logo-bubble.svg'],
+      includeAssets: ['favicon.svg', 'images/prizma-logo-bubble.svg', 'images/prizma_pwa.svg'],
       manifest: {
         name: 'PRIZMA - Психологический тест',
         short_name: 'PRIZMA',
@@ -20,7 +20,7 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/images/prizma-logo-bubble.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: '/images/prizma_pwa.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
       workbox: {
