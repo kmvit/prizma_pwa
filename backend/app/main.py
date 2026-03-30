@@ -592,8 +592,6 @@ async def get_reports_status(user: User = Depends(get_current_user)):
 async def download_report(user: User = Depends(get_current_user)):
     if not user.test_completed:
         raise HTTPException(status_code=400, detail="Тест не завершен")
-    if user.is_premium_paid:
-        return RedirectResponse(url="/api/me/download/premium-report")
     reports_dir = BASE_DIR / "reports"
     files = glob.glob(str(reports_dir / f"prizma_report_{user.id}_*"))
     if files:
