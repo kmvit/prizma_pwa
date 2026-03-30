@@ -940,6 +940,23 @@ async def payment_fail():
     return RedirectResponse(url=f"{FRONTEND_URL}/payment/fail")
 
 
+@app.get("/api/payment/redirect-fail")
+async def payment_redirect_fail(InvId: Optional[str] = None):
+    """Fail URL из личного кабинета Robokassa (путь redirect-fail); OutSum/Culture в query допустимы и игнорируются."""
+    q = f"?inv_id={InvId}" if InvId else ""
+    return RedirectResponse(url=f"{FRONTEND_URL}/payment/fail{q}")
+
+
+@app.get("/api/payment/redirect-success")
+async def payment_redirect_success(
+    inv_id: Optional[str] = None,
+    InvId: Optional[str] = None,
+):
+    """Алиас успеха, если в кабинете указан путь redirect-success."""
+    iid = inv_id or InvId or ""
+    return RedirectResponse(url=f"{FRONTEND_URL}/payment/success?inv_id={iid}")
+
+
 @app.get("/api/robokassa/result")
 async def robokassa_result(OutSum: str, InvId: str, SignatureValue: str):
     payment = await _payment_for_robokassa_inv(InvId)
