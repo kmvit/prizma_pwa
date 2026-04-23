@@ -100,6 +100,7 @@ export const api = {
     fetchApi('/me/start-premium-payment', { method: 'POST' }),
 
   getSpecialOfferTimer: () => fetchApi('/me/special-offer-timer'),
+  getPublicPricing: () => fetchApi('/public/pricing'),
 
   resetSpecialOfferTimer: () =>
     fetchApi('/me/reset-special-offer-timer', { method: 'POST' }),

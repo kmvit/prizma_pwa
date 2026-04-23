@@ -752,6 +752,14 @@ def _get_special_offer_remaining(user: User) -> tuple[bool, int]:
     return remaining > 0, max(0, int(remaining))
 
 
+@app.get("/api/public/pricing")
+async def get_public_pricing():
+    return {
+        "discount_price": PREMIUM_PRICE_DISCOUNT,
+        "original_price": PREMIUM_PRICE_ORIGINAL,
+    }
+
+
 @app.get("/api/me/special-offer-timer")
 async def get_special_offer_timer(user: User = Depends(get_current_user)):
     if not user.special_offer_started_at:

@@ -22,6 +22,10 @@ export default function HomePage() {
   const [selectOpen, setSelectOpen] = useState(false)
 
   useEffect(() => {
+    api.getPublicPricing().then(setSpecialOffer).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (!user) return
     api.getProfile().then((d) => {
       const u = d.user
