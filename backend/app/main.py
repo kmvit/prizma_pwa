@@ -755,7 +755,12 @@ def _get_special_offer_remaining(user: User) -> tuple[bool, int]:
 @app.get("/api/me/special-offer-timer")
 async def get_special_offer_timer(user: User = Depends(get_current_user)):
     if not user.special_offer_started_at:
-        return {"active": False, "remaining_seconds": 0}
+        return {
+            "active": False,
+            "remaining_seconds": 0,
+            "discount_price": PREMIUM_PRICE_DISCOUNT,
+            "original_price": PREMIUM_PRICE_ORIGINAL,
+        }
     active, remaining = _get_special_offer_remaining(user)
     if remaining > 0:
         asyncio.create_task(check_and_send_timer_notifications(user, remaining))
