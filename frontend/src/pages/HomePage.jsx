@@ -18,6 +18,7 @@ export default function HomePage() {
   const [gender, setGender] = useState('')
   const [timer, setTimer] = useState(43144) // 11:59:04 in seconds
   const [timerActive, setTimerActive] = useState(true)
+  const [specialOffer, setSpecialOffer] = useState(null)
   const [selectOpen, setSelectOpen] = useState(false)
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function HomePage() {
       if (u?.gender) setGender(u.gender)
     })
     api.getSpecialOfferTimer().then((d) => {
+      setSpecialOffer(d)
       if (d.active && d.remaining_seconds > 0) {
         setTimerActive(true)
         setTimer(d.remaining_seconds)
@@ -84,6 +86,9 @@ export default function HomePage() {
   }
 
   const genderLabel = gender === 'male' ? 'Мужской' : gender === 'female' ? 'Женский' : 'Пол'
+  const currentPrice = timerActive
+    ? (specialOffer?.discount_price ?? 999)
+    : (specialOffer?.original_price ?? specialOffer?.discount_price ?? 999)
 
   useBodyClass('main quiz-start-page')
 
@@ -266,8 +271,10 @@ export default function HomePage() {
               <a href="/price" className="promo-button" onClick={(e) => { e.preventDefault(); handlePayment(e) }}>
                 {timerActive && <img src="/images/promo-fire-ico.webp" className="promo-ico" alt="" />}
                 <div className="promo-price">
-                  <div className="price-item decoding-offer-button-current-price">1р</div>
-                  {timerActive && <div className="price-item-old decoding-offer-button-old-price"><span>1р</span></div>}
+                  <div className="price-item decoding-offer-button-current-price">{currentPrice} ₽</div>
+                  {timerActive && specialOffer?.original_price && (
+                    <div className="price-item-old decoding-offer-button-old-price"><span>{specialOffer.original_price} ₽</span></div>
+                  )}
                 </div>
                 <div className="promo-text">
                   <span>Получить</span>
